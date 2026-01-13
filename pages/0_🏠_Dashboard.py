@@ -2,7 +2,6 @@ import streamlit as st
 import pandas as pd
 import database
 import altair as alt
-from datetime import datetime
 
 st.set_page_config(
     page_title="Dashboard",
@@ -12,19 +11,28 @@ st.set_page_config(
 
 st.title("🏠 Dashboard de Clientes")
 
-# --- Carregar Dados ---
-try:
-    df = database.fetch_data(page_size=10000) # Busca um número grande para as métricas gerais
-except database.DatabaseError as e:
-    st.error(f"Não foi possível carregar os dados do dashboard: {e}")
-    st.stop()
+# --- Função de Carregamento com Cache ---
+@st.cache_data(ttl=600) # Cache de 10 minutos
+def load_data():
+    """Busca todos os dados dos clientes para o dashboard."""
+    try:
+        # page_size muito grande para buscar todos os registros para o dashboard
+        return database.fetch_data(page_size=50000) 
+    except database.DatabaseError as e:
+        st.error(f"Não foi possível carregar os dados do dashboard: {e}")
+        return pd.DataFrame()
 
+# --- Carregar Dados ---
+df = load_data()
 
 if df.empty:
     st.info(
         "Ainda não há clientes cadastrados. "
         "Vá para a página de '📝 Cadastro' na barra lateral para começar."
     )
+    if st.button("Atualizar dados"):
+        st.cache_data.clear()
+        st.rerun()
 else:
     # --- Preparação dos Dados ---
     df['data_cadastro'] = pd.to_datetime(df['data_cadastro'])
@@ -33,12 +41,10 @@ else:
     total_clientes = len(df)
     cliente_recente = df.sort_values(by='data_cadastro', ascending=False).iloc[0]
     
-    # Novos clientes no mês atual
-    now = datetime.now()
-    novos_clientes_mes = len(df[df['data_cadastro'].dt.month == now.month])
+    now = pd.Timestamp.now()
+    novos_clientes_mes = len(df[df['data_cadastro'].dt.to_period('M') == now.to_period('M')])
     
-    # Estado com mais clientes
-    estado_mais_comum = df['estado'].mode()[0] if not df['estado'].empty else "N/A"
+    estado_mais_comum = df['estado'].mode()[0] if not df['estado'].empty and df['estado'].mode().any() else "N/A"
 
     col1, col2, col3, col4 = st.columns(4)
     with col1:
@@ -78,7 +84,7 @@ else:
             width=300,
             height=300
         )
-        st.altair_chart(pie_chart, use_container_width=True)
+        st.altair_chart(pie_chart, width='stretch')
 
     st.markdown("---")
     
@@ -94,7 +100,7 @@ else:
             df[['nome_completo', 'email', 'cidade', 'data_cadastro']]
             .sort_values(by='data_cadastro', ascending=False)
             .head(5),
-            use_container_width=True,
+            width='stretch',
             hide_index=True,
             column_config={
                 "nome_completo": "Nome Completo",
@@ -103,3 +109,7 @@ else:
                 "data_cadastro": st.column_config.DateColumn("Data de Cadastro", format="DD/MM/YYYY")
             }
         )
+    
+    if st.button("Limpar Cache e Atualizar Dados"):
+        st.cache_data.clear()
+        st.rerun()

@@ -12,6 +12,7 @@ st.set_page_config(
 
 st.title("Banco de Dados de Clientes")
 
+# ... (código do Modal, Status e process_changes mantido como antes)
 # --- Modal de Confirmação ---
 delete_modal = Modal("Confirmar Exclusão", key="delete_modal")
 
@@ -48,7 +49,8 @@ def process_changes(df_edited, df_original):
     except Exception as e:
         st.session_state.db_status = {"success": False, "message": f"Ocorreu um erro inesperado: {e}"}
 
-# --- Barra Lateral (Filtros e Paginação) ---
+
+# --- Barra Lateral (Filtros, Paginação e Ações) ---
 st.sidebar.header("Filtros e Ações")
 search_query = st.sidebar.text_input("Buscar por Nome ou CPF")
 conn = database.get_db_connection()
@@ -60,44 +62,58 @@ except Exception as e:
     st.sidebar.error("Filtros indisponíveis.")
     st.stop()
 
-# Controles de Paginação
-st.sidebar.markdown("---")
-st.sidebar.header("Paginação")
+# Paginação
 page_size = st.sidebar.selectbox("Itens por página", options=[10, 25, 50, 100], index=0)
-
-try:
-    total_records = database.count_total_records(search_query, state_filter)
-    total_pages = math.ceil(total_records / page_size) if total_records > 0 else 1
-except database.DatabaseError as e:
-    st.error(f"Não foi possível carregar os dados: {e}")
-    st.stop()
-
+total_records = database.count_total_records(search_query, state_filter)
+total_pages = math.ceil(total_records / page_size) if total_records > 0 else 1
 page_number = st.sidebar.number_input('Página', min_value=1, max_value=total_pages, value=1, step=1)
 
-# --- Lógica Principal ---
+st.sidebar.markdown("---")
+
+# --- Lógica Principal e de Exportação ---
 df_page = database.fetch_data(search_query=search_query, state_filter=state_filter, page=page_number, page_size=page_size)
 
 if not df_page.empty:
-    csv = database.df_to_csv(df_page)
-    st.sidebar.download_button(label="Exportar página para CSV", data=csv, file_name='clientes_pagina.csv', mime='text/csv')
+    st.sidebar.download_button(
+        label="Exportar página atual para CSV",
+        data=database.df_to_csv(df_page),
+        file_name=f'clientes_pagina_{page_number}.csv',
+        mime='text/csv'
+    )
+    
+    # Botão para exportar todos os resultados da busca
+    if total_records > page_size:
+        if st.sidebar.button("Preparar Exportação Completa"):
+            with st.spinner(f"Buscando todos os {total_records} registros..."):
+                df_full = database.fetch_data(search_query=search_query, state_filter=state_filter, page_size=total_records)
+                st.session_state.full_export_data = database.df_to_csv(df_full)
+
+        if 'full_export_data' in st.session_state:
+             st.sidebar.download_button(
+                label=f"Baixar {total_records} registros como CSV",
+                data=st.session_state.full_export_data,
+                file_name='clientes_completo.csv',
+                mime='text/csv',
+                on_click=lambda: st.session_state.pop('full_export_data') # Limpa o estado após o clique
+            )
 else:
     st.sidebar.info("Não há dados para exportar.")
 
-# --- Interface de Edição ---
+# ... (resto do código da Interface de Edição mantido como antes)
 if not df_page.empty:
     df_for_editing = df_page.copy()
     df_for_editing.insert(0, 'Deletar', False)
 
     st.info("Marque 'Deletar' para remover um registro ou edite os campos. As alterações são salvas com o botão abaixo.")
     
-    edited_df = st.data_editor(df_for_editing, key="data_editor", use_container_width=True, hide_index=True, column_config={
+    edited_df = st.data_editor(df_for_editing, key="data_editor", width='stretch', hide_index=True, column_config={
         "id": st.column_config.NumberColumn("ID", disabled=True),
         # ... (outras configurações de coluna)
     })
     
     st.markdown(f"Mostrando **{len(df_page)}** de **{total_records}** registros. Página **{page_number}** de **{total_pages}**.")
 
-    if st.button("Salvar Alterações", use_container_width=True, disabled=df_page.empty):
+    if st.button("Salvar Alterações", width='stretch', disabled=df_page.empty):
         deletes = edited_df[edited_df['Deletar'] == True]
         if not deletes.empty:
             delete_modal.open()
