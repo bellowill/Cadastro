@@ -25,10 +25,10 @@ def fetch_address_data(cep):
         if data.get("erro"):
             st.warning("CEP não encontrado. Por favor, preencha o endereço manualmente.")
             st.session_state.address_data = {}
-            st.session_state.endereco_input = ""
-            st.session_state.bairro_input = ""
-            st.session_state.cidade_input = ""
-            st.session_state.estado_input = ""
+            st.session_state.form_endereco = ""
+            st.session_state.form_bairro = ""
+            st.session_state.form_cidade = ""
+            st.session_state.form_estado = ""
         else:
             st.success("Endereço encontrado!")
             address = {
@@ -38,10 +38,10 @@ def fetch_address_data(cep):
                 "estado": data.get("uf", "")
             }
             st.session_state.address_data = address
-            st.session_state.endereco_input = address["endereco"]
-            st.session_state.bairro_input = address["bairro"]
-            st.session_state.cidade_input = address["cidade"]
-            st.session_state.estado_input = address["estado"]
+            st.session_state.form_endereco = address["endereco"]
+            st.session_state.form_bairro = address["bairro"]
+            st.session_state.form_cidade = address["cidade"]
+            st.session_state.form_estado = address["estado"]
             st.components.v1.html("<script>document.querySelector('input[aria-label=\"Número\"]').focus();</script>", height=0)
 
     except requests.exceptions.ConnectionError:
@@ -121,8 +121,6 @@ with st.container(border=True):
 
             fetch_address_data(cep_input)
 
-            st.rerun()
-
 
 
 st.markdown("---")
@@ -132,83 +130,43 @@ st.markdown("---")
 # --- Formulário Principal ---
 
 with st.form(key="new_customer_form", clear_on_submit=False):
-
     st.subheader("Dados Pessoais")
-
     col1, col2 = st.columns([2, 1])
-
     with col1:
-
         nome = st.text_input('Nome Completo *', key="form_nome")
-
     with col2:
-
         cpf = st.text_input('CPF *', key="form_cpf")
 
-
-
     col3, col4, col5 = st.columns(3)
-
     with col3:
-
         whatsapp = st.text_input('WhatsApp', key="form_whatsapp")
-
     with col4:
-
         email = st.text_input('E-mail', key="form_email")
-
     with col5:
-
         data_nascimento = st.date_input('Data de Nascimento', value=None, min_value=datetime.date(1900, 1, 1), key="form_data_nascimento")
 
-
-
     st.subheader("Endereço")
-
     st.caption("Se o CEP não for encontrado, você pode preencher os campos manualmente.")
-
     
-
-    # st.session_state.form_endereco = st.session_state.address_data.get("endereco", st.session_state.get("form_endereco", ""))
-
-    endereco = st.text_input('Endereço', value=st.session_state.address_data.get("endereco", ""), key="form_endereco")
-
-    col8, col9, col10 = st.columns([1, 1, 2])
-
-    with col8:
-
+    col_end, col_num = st.columns([3, 1])
+    with col_end:
+        endereco = st.text_input('Endereço', key="form_endereco")
+    with col_num:
         numero = st.text_input('Número', key="form_numero")
 
-    with col9:
-
+    col_bairro, col_comp = st.columns(2)
+    with col_bairro:
+        bairro = st.text_input('Bairro', key="form_bairro")
+    with col_comp:
         complemento = st.text_input('Complemento', key="form_complemento")
 
-    with col10:
-
-        # st.session_state.form_bairro = st.session_state.address_data.get("bairro", st.session_state.get("form_bairro", ""))
-
-        bairro = st.text_input('Bairro', value=st.session_state.address_data.get("bairro", ""), key="form_bairro")
-
-
-
-    col11, col12 = st.columns([2, 1])
-
-    with col11:
-
-        # st.session_state.form_cidade = st.session_state.address_data.get("cidade", st.session_state.get("form_cidade", ""))
-
-        cidade = st.text_input('Cidade', value=st.session_state.address_data.get("cidade", ""), key="form_cidade")
-
-    with col12:
-
-        # st.session_state.form_estado = st.session_state.address_data.get("estado", st.session_state.get("form_estado", ""))
-
-        estado = st.text_input('UF', value=st.session_state.address_data.get("estado", ""), max_chars=2, key="form_estado")
-
+    col_cidade, col_estado = st.columns([3, 1])
+    with col_cidade:
+        cidade = st.text_input('Cidade', key="form_cidade")
+    with col_estado:
+        estado = st.text_input('UF', max_chars=2, key="form_estado")
     
-
     st.markdown("---")
-
     submit_button = st.form_submit_button('Salvar Cliente', type="primary", width='stretch')
 
 

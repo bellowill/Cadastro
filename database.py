@@ -158,7 +158,7 @@ def _get_deletes(edited_df: pd.DataFrame) -> list:
     return edited_df.loc[delete_mask, 'id'].tolist()
 
 def fetch_data(search_query: str = None, state_filter: str = None, page: int = 1, page_size: int = 10):
-    """Busca dados de clientes com paginação."""
+    """Busca dados de clientes com paginação e formata para exibição."""
     conn = get_db_connection()
     
     where_clause, params = _build_where_clause(search_query, state_filter)
@@ -170,6 +170,13 @@ def fetch_data(search_query: str = None, state_filter: str = None, page: int = 1
         df = pd.read_sql_query(query, conn, params=params + [page_size, offset])
         df['data_nascimento'] = pd.to_datetime(df['data_nascimento'], errors='coerce').dt.date
         df['data_cadastro'] = pd.to_datetime(df['data_cadastro'], errors='coerce').dt.date
+        
+        # Formata colunas para uma exibição amigável
+        if 'cpf' in df.columns:
+            df['cpf'] = df['cpf'].apply(validators.format_cpf)
+        if 'whatsapp' in df.columns:
+            df['whatsapp'] = df['whatsapp'].apply(validators.format_whatsapp)
+            
         return df
     except (pd.io.sql.DatabaseError, sqlite3.Error) as e:
         logging.error(f"Erro ao buscar dados com paginação: {e}")
