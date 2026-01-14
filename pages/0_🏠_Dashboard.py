@@ -88,13 +88,28 @@ else:
 
     st.markdown("---")
     
-    col3, col4 = st.columns(2)
+    col3, col4, col5 = st.columns(3)
     with col3:
         st.subheader("Top 5 Cidades")
         top_5_cidades = df['cidade'].value_counts().nlargest(5)
         st.bar_chart(top_5_cidades)
 
     with col4:
+        st.subheader("Tipo de Cliente")
+        tipo_cliente = df['tipo_documento'].value_counts().reset_index()
+        tipo_cliente.columns = ['tipo', 'contagem']
+        
+        donut_chart = alt.Chart(tipo_cliente).mark_arc(innerRadius=80).encode(
+            theta=alt.Theta(field="contagem", type="quantitative"),
+            color=alt.Color(field="tipo", type="nominal", title="Tipo"),
+            tooltip=['tipo', 'contagem']
+        ).properties(
+            width=300,
+            height=300
+        )
+        st.altair_chart(donut_chart, width='stretch')
+
+    with col5:
         st.subheader("Últimos 5 Clientes Cadastrados")
         st.dataframe(
             df[['nome_completo', 'email', 'cidade', 'data_cadastro']]

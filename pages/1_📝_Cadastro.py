@@ -8,146 +8,101 @@ import re
 st.set_page_config(page_title="Cadastro de Clientes", page_icon="📝", layout="centered")
 
 # --- Funções ---
+
 def fetch_address_data(cep):
-    """Busca dados de endereço a partir de um CEP na API ViaCEP e atualiza o estado dos widgets."""
     cep_cleaned = re.sub(r'[^0-9]', '', cep)
     if len(cep_cleaned) != 8:
         st.error("CEP inválido. Deve conter 8 dígitos.")
-        st.session_state.address_data = {}
         return
-    
     try:
         with st.spinner("Buscando CEP..."):
             response = requests.get(f"https://viacep.com.br/ws/{cep_cleaned}/json/", timeout=5)
             response.raise_for_status()
             data = response.json()
-        
         if data.get("erro"):
             st.warning("CEP não encontrado. Por favor, preencha o endereço manualmente.")
-            st.session_state.address_data = {}
-            st.session_state.form_endereco = ""
-            st.session_state.form_bairro = ""
-            st.session_state.form_cidade = ""
-            st.session_state.form_estado = ""
+            st.session_state.form_endereco, st.session_state.form_bairro, st.session_state.form_cidade, st.session_state.form_estado = "", "", "", ""
         else:
             st.success("Endereço encontrado!")
-            address = {
-                "endereco": data.get("logradouro", ""),
-                "bairro": data.get("bairro", ""),
-                "cidade": data.get("localidade", ""),
-                "estado": data.get("uf", "")
-            }
-            st.session_state.address_data = address
-            st.session_state.form_endereco = address["endereco"]
-            st.session_state.form_bairro = address["bairro"]
-            st.session_state.form_cidade = address["cidade"]
-            st.session_state.form_estado = address["estado"]
-            st.components.v1.html("<script>document.querySelector('input[aria-label=\"Número\"]').focus();</script>", height=0)
-
-    except requests.exceptions.ConnectionError:
-        st.error("Erro de rede ao buscar o CEP. Verifique sua conexão ou tente novamente mais tarde.")
-        st.session_state.address_data = {}
+            st.session_state.form_endereco = data.get("logradouro", "")
+            st.session_state.form_bairro = data.get("bairro", "")
+            st.session_state.form_cidade = data.get("localidade", "")
+            st.session_state.form_estado = data.get("uf", "")
+            st.components.v1.html("<script>document.querySelector(\"input[aria-label='Número']\").focus();</script>", height=0)
     except requests.exceptions.RequestException as e:
-        st.error(f"Erro ao buscar o CEP: {e}")
-        st.session_state.address_data = {}
+        st.error(f"Erro de rede ao buscar o CEP: {e}")
 
 def clear_form_inputs():
-
-    """Limpa todos os inputs do formulário no session_state."""
-
-    st.session_state.cep_input = ""
-
-    st.session_state.address_data = {}
-
-    
-
-    # Lista de chaves dos campos do formulário principal
-
-    form_keys = [
-
-        "form_nome", "form_cpf", "form_whatsapp", "form_email", 
-
-        "form_data_nascimento", "form_endereco", "form_numero", 
-
-        "form_complemento", "form_bairro", "form_cidade", "form_estado"
-
-    ]
-
-    for key in form_keys:
-
+    keys_to_clear = [k for k in st.session_state.keys() if k.startswith("form_") or k == "cep_input"]
+    for key in keys_to_clear:
         if "data_nascimento" in key:
-
             st.session_state[key] = None
-
+        elif "tipo_documento" in key:
+            st.session_state[key] = "CPF"
         else:
-
             st.session_state[key] = ""
 
+# --- Lógica de Estado ---
+if st.session_state.get("form_error"):
+    st.error(st.session_state.pop("form_error"))
 
-
-
-
-# Inicializa o session_state
-
-if 'address_data' not in st.session_state:
-
-    st.session_state.address_data = {}
-
-
+if st.session_state.get("form_submitted_successfully", False):
+    st.session_state.form_submitted_successfully = False
+    clear_form_inputs()
+    st.balloons()
+    st.success("Cliente salvo com sucesso!")
 
 # --- Interface ---
-
 st.title('📝 Cadastro de Clientes')
 
-
-
-# --- Seção de Busca de CEP ---
-
-st.markdown("Comece digitando o CEP para preencher o endereço automaticamente.")
-
 with st.container(border=True):
-
+    st.subheader("Busca de Endereço por CEP")
     col1, col2 = st.columns([1, 2])
-
     with col1:
-
         cep_input = st.text_input("CEP", max_chars=9, key="cep_input")
-
     with col2:
-
         st.markdown("<br/>", unsafe_allow_html=True)
-
         if st.button("Buscar Endereço"):
-
             fetch_address_data(cep_input)
-
-
+            st.rerun()
 
 st.markdown("---")
 
-
-
-# --- Formulário Principal ---
-
 with st.form(key="new_customer_form", clear_on_submit=False):
-    st.subheader("Dados Pessoais")
+    st.subheader("Dados Principais")
+    
     col1, col2 = st.columns([2, 1])
     with col1:
-        nome = st.text_input('Nome Completo *', key="form_nome")
+        nome = st.text_input('Nome Completo / Razão Social *', key="form_nome")
     with col2:
-        cpf = st.text_input('CPF *', key="form_cpf")
+        tipo_documento = st.radio("Tipo de Documento", ["CPF", "CNPJ"], horizontal=True, key="form_tipo_documento")
 
+    label_documento = "CPF *" if tipo_documento == "CPF" else "CNPJ *"
+    documento = st.text_input(label_documento, key="form_documento")
+    
+    st.subheader("Contatos")
     col3, col4, col5 = st.columns(3)
     with col3:
-        whatsapp = st.text_input('WhatsApp', key="form_whatsapp")
+        contato1 = st.text_input("Nome do Contato 1", key="form_contato1")
     with col4:
-        email = st.text_input('E-mail', key="form_email")
+        telefone1 = st.text_input('Telefone 1', key="form_telefone1")
     with col5:
-        data_nascimento = st.date_input('Data de Nascimento', value=None, min_value=datetime.date(1900, 1, 1), key="form_data_nascimento")
+        cargo = st.text_input("Cargo do Contato 1", key="form_cargo")
+    
+    col6, col7 = st.columns([2, 1])
+    with col6:
+        contato2 = st.text_input("Nome do Contato 2", key="form_contato2")
+    with col7:
+        telefone2 = st.text_input('Telefone 2', key="form_telefone2")
+
+    st.subheader("Informações Adicionais")
+    col_email, col_data = st.columns(2)
+    with col_email:
+        email = st.text_input('E-mail', key="form_email")
+    with col_data:
+        data_nascimento = st.date_input('Data de Nascimento / Fundação', value=None, min_value=datetime.date(1900, 1, 1), key="form_data_nascimento")
 
     st.subheader("Endereço")
-    st.caption("Se o CEP não for encontrado, você pode preencher os campos manualmente.")
-    
     col_end, col_num = st.columns([3, 1])
     with col_end:
         endereco = st.text_input('Endereço', key="form_endereco")
@@ -166,55 +121,32 @@ with st.form(key="new_customer_form", clear_on_submit=False):
     with col_estado:
         estado = st.text_input('UF', max_chars=2, key="form_estado")
     
+    st.subheader("Observações")
+    observacao = st.text_area("Observações", "", height=150, max_chars=1000, key="form_observacao")
+
     st.markdown("---")
     submit_button = st.form_submit_button('Salvar Cliente', type="primary", width='stretch')
 
-
-
-# --- Lógica de Submissão ---
-
 if submit_button:
-
-    if cpf:
-
-        cpf = validators.format_cpf(cpf)
-
-    if whatsapp:
-
-        whatsapp = validators.format_whatsapp(whatsapp)
-
-
-
-    customer_data = {
-
-        'nome_completo': nome, 'cpf': cpf, 'whatsapp': whatsapp, 'email': email,
-
-        'data_nascimento': data_nascimento, 'cep': cep_input, 'endereco': endereco, 'numero': numero,
-
-        'complemento': complemento, 'bairro': bairro, 'cidade': cidade, 'estado': estado,
-
-    }
-
+    cpf_valor, cnpj_valor = (validators.format_cpf(documento), None) if tipo_documento == "CPF" else (None, validators.format_cnpj(documento))
     
-
+    customer_data = {
+        'nome_completo': nome, 'tipo_documento': tipo_documento, 'cpf': cpf_valor, 'cnpj': cnpj_valor,
+        'contato1': contato1, 'telefone1': validators.format_whatsapp(telefone1), 
+        'contato2': contato2, 'telefone2': validators.format_whatsapp(telefone2), 'cargo': cargo,
+        'email': email, 'data_nascimento': data_nascimento, 
+        'cep': cep_input, 'endereco': endereco, 'numero': numero,
+        'complemento': complemento, 'bairro': bairro, 'cidade': cidade, 'estado': estado, 
+        'observacao': observacao,
+    }
+    
     try:
-
         database.insert_customer(customer_data)
-
-        st.success("Cliente salvo com sucesso!")
-
-        clear_form_inputs()
-
+        st.session_state.form_submitted_successfully = True
         st.rerun()
-
-
-
-    except (validators.ValidationError, database.DatabaseError) as e:
-
-        st.error(f"Erro ao salvar: {e}")
-
+    except (validators.ValidationError, database.DatabaseError, database.DuplicateEntryError) as e:
+        st.session_state.form_error = f"Erro ao salvar: {e}"
+        st.rerun()
     except Exception as e:
-
-        st.error("Ocorreu um erro inesperado.")
-
-        st.exception(e)
+        st.session_state.form_error = f"Ocorreu um erro inesperado: {e}"
+        st.rerun()

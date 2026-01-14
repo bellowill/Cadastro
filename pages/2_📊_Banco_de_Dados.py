@@ -106,10 +106,39 @@ if not df_page.empty:
 
     st.info("Marque 'Deletar' para remover um registro ou edite os campos. As alterações são salvas com o botão abaixo.")
     
-    edited_df = st.data_editor(df_for_editing, key="data_editor", width='stretch', hide_index=True, column_config={
+    column_config = {
         "id": st.column_config.NumberColumn("ID", disabled=True),
-        # ... (outras configurações de coluna)
-    })
+        "Deletar": st.column_config.CheckboxColumn("Deletar?", default=False),
+        "nome_completo": "Nome Completo",
+        "tipo_documento": "Tipo",
+        "cpf": st.column_config.TextColumn("CPF", disabled=True),
+        "cnpj": st.column_config.TextColumn("CNPJ", disabled=True),
+        "contato1": "Contato 1",
+        "telefone1": "Telefone 1",
+        "contato2": "Contato 2",
+        "telefone2": "Telefone 2",
+        "cargo": "Cargo",
+        "email": "E-mail",
+        "data_nascimento": st.column_config.DateColumn("Nascimento/Fundação", format="DD/MM/YYYY"),
+        "observacao": st.column_config.TextColumn("Observação", width="large"),
+        "data_cadastro": st.column_config.DateColumn("Data de Cadastro", format="DD/MM/YYYY", disabled=True),
+    }
+    
+    # Define a ordem desejada das colunas
+    column_order = [
+        'Deletar', 'id', 'nome_completo', 'tipo_documento', 'cpf', 'cnpj',
+        'contato1', 'telefone1', 'contato2', 'telefone2', 'cargo', 'email', 
+        'data_nascimento', 'cidade', 'estado', 'observacao'
+    ]
+
+    edited_df = st.data_editor(
+        df_for_editing,
+        key="data_editor",
+        width='stretch',
+        hide_index=True,
+        column_order=column_order,
+        column_config=column_config
+    )
     
     st.markdown(f"Mostrando **{len(df_page)}** de **{total_records}** registros. Página **{page_number}** de **{total_pages}**.")
 
