@@ -109,8 +109,6 @@ if not df_page.empty:
                 mime='text/csv',
                 on_click=lambda: st.session_state.pop('full_export_data') # Limpa o estado após o clique
             )
-    else:
-        st.sidebar.info("Não há dados para exportar.")
 # ... (resto do código da Interface de Edição mantido como antes)
 if not df_page.empty:
     df_for_editing = df_page.copy()
