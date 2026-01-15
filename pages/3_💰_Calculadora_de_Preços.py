@@ -40,7 +40,7 @@ def calculate_costs(inputs):
     total_labor_cost = cost_design + cost_slice + cost_assembly + cost_post_process
 
     # Custo de Material
-    cost_per_gram = inputs['filament_cost_kg'] / 1000
+    cost_per_gram = inputs['filament_cost_kg'] / 1000 if inputs['filament_cost_kg'] > 0 else 0
     cost_material = inputs['material_weight_g'] * cost_per_gram
     
     # Custo de Impressão (Eletricidade + Desgaste)
@@ -74,31 +74,10 @@ def calculate_costs(inputs):
         "Preço de Venda Final": final_price
     }
 
-# --- Exibição dos Resultados (no topo) ---
-results = calculate_costs(inputs)
-final_price = results["Preço de Venda Final"]
-
-st.subheader("📊 Resultados da Precificação")
-with st.container(border=True):
-    st.success(f"**Preço de Venda Sugerido: R$ {final_price:.2f}**")
-    
-    with st.expander("Ver detalhamento completo dos custos"):
-        # Detalhamento
-        st.metric("Custo Total de Mão de Obra", f"R$ {results['Custo de Mão de Obra Total']:.2f}")
-        st.metric("Custo de Material", f"R$ {results['Custo de Material']:.2f}")
-        st.metric("Custo Total de Impressão (Eletricidade + Desgaste)", f"R$ {results['Custo Total de Impressão']:.2f}")
-        st.divider()
-        st.metric("Custo de Produção (Subtotal)", f"R$ {results['Custo de Produção']:.2f}")
-        st.metric("Custo com Fator de Complexidade", f"R$ {results['Custo com Complexidade']:.2f}", help=f"Multiplicador de {inputs['complexity_factor']}x aplicado.")
-        st.metric("Custo com Taxa de Falha", f"R$ {results['Custo com Taxa de Falha']:.2f}", help=f"{inputs['failure_rate_percent']}% adicionado ao custo.")
-        st.metric("Custo com Taxa de Urgência", f"R$ {results['Custo com Taxa de Urgência']:.2f}", help=f"{inputs['urgency_fee_percent']}% adicionado ao custo.")
-        st.divider()
-        st.metric("Preço de Venda Final (com Lucro)", f"R$ {final_price:.2f}", help=f"{inputs['profit_margin_percent']}% de margem de lucro adicionada.")
-
+# --- Interface de Inputs ---
 st.markdown("---")
 st.subheader("⚙️ Insira os Dados do Projeto")
 
-# --- Interface de Inputs ---
 with st.container(border=True):
     with st.expander("👨‍💻 Custos de Mão de Obra e Tempo", expanded=True):
         c1, c2 = st.columns(2)
@@ -126,3 +105,26 @@ with st.container(border=True):
         inputs['complexity_factor'] = c2.number_input("Fator de complexidade (multiplicador)", key='com_f', min_value=1.0, step=0.1, help="Use 1.0 para normal, 1.5 para complexo, etc.")
         inputs['urgency_fee_percent'] = c1.number_input("Taxa de urgência (%)", key='urg_p', min_value=0.0, max_value=200.0, step=5.0)
         inputs['profit_margin_percent'] = c2.number_input("Margem de lucro (%)", key='pro_p', min_value=0.0, step=5.0)
+
+st.markdown("---")
+
+# --- Exibição dos Resultados (no final) ---
+results = calculate_costs(inputs)
+final_price = results["Preço de Venda Final"]
+
+st.subheader("📊 Resultados da Precificação")
+with st.container(border=True):
+    st.success(f"**Preço de Venda Sugerido: R$ {final_price:.2f}**")
+    
+    with st.expander("Ver detalhamento completo dos custos"):
+        # Detalhamento
+        st.metric("Custo Total de Mão de Obra", f"R$ {results['Custo de Mão de Obra Total']:.2f}")
+        st.metric("Custo de Material", f"R$ {results['Custo de Material']:.2f}")
+        st.metric("Custo Total de Impressão (Eletricidade + Desgaste)", f"R$ {results['Custo Total de Impressão']:.2f}")
+        st.divider()
+        st.metric("Custo de Produção (Subtotal)", f"R$ {results['Custo de Produção']:.2f}")
+        st.metric("Custo com Fator de Complexidade", f"R$ {results['Custo com Complexidade']:.2f}", help=f"Multiplicador de {inputs['complexity_factor']}x aplicado.")
+        st.metric("Custo com Taxa de Falha", f"R$ {results['Custo com Taxa de Falha']:.2f}", help=f"{inputs['failure_rate_percent']}% adicionado ao custo.")
+        st.metric("Custo com Taxa de Urgência", f"R$ {results['Custo com Taxa de Urgência']:.2f}", help=f"{inputs['urgency_fee_percent']}% adicionado ao custo.")
+        st.divider()
+        st.metric("Preço de Venda Final (com Lucro)", f"R$ {final_price:.2f}", help=f"{inputs['profit_margin_percent']}% de margem de lucro adicionada.")
