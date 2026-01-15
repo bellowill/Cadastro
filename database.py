@@ -118,7 +118,7 @@ def insert_customer(data: dict):
         conn.rollback()
         raise DatabaseError(f"Ocorreu um erro ao salvar: {e}") from e
 
-def _build_where_clause(search_query: str = None, state_filter: str = None):
+def _build_where_clause(search_query: str = None, state_filter: str = None, start_date=None, end_date=None):
     params = []
     conditions = []
     if search_query:
@@ -128,11 +128,16 @@ def _build_where_clause(search_query: str = None, state_filter: str = None):
         conditions.append("estado = ?")
         params.append(state_filter)
     
+    if start_date and end_date:
+        conditions.append("data_cadastro BETWEEN ? AND ?")
+        params.extend([start_date, end_date])
+
     where_clause = " WHERE " + " AND ".join(conditions) if conditions else ""
     return where_clause, params
 
 def count_total_records(search_query: str = None, state_filter: str = None) -> int:
     conn = get_db_connection()
+    # Note: count_total_records in the data grid does not use date filters, so we don't pass them here.
     where_clause, params = _build_where_clause(search_query, state_filter)
     query = f"SELECT COUNT(id) FROM customers{where_clause}"
     try:
@@ -144,6 +149,7 @@ def count_total_records(search_query: str = None, state_filter: str = None) -> i
 
 def fetch_data(search_query: str = None, state_filter: str = None, page: int = 1, page_size: int = 10000):
     conn = get_db_connection()
+    # Note: fetch_data for the main grid does not use date filters.
     where_clause, params = _build_where_clause(search_query, state_filter)
     offset = (page - 1) * page_size
     query = f"SELECT {', '.join(ALL_COLUMNS_WITH_ID)} FROM customers{where_clause} ORDER BY id DESC LIMIT ? OFFSET ?"
@@ -168,13 +174,16 @@ def fetch_data(search_query: str = None, state_filter: str = None, page: int = 1
     except (pd.io.sql.DatabaseError, sqlite3.Error) as e:
         raise DatabaseError(f"Erro ao buscar dados: {e}") from e
 
-def fetch_dashboard_data() -> pd.DataFrame:
+def fetch_dashboard_data(start_date=None, end_date=None) -> pd.DataFrame:
     """Busca apenas as colunas necessárias para os gráficos e tabelas do dashboard."""
     conn = get_db_connection()
     columns_to_fetch = "nome_completo, email, cidade, data_cadastro, tipo_documento, estado"
-    query = f"SELECT {columns_to_fetch} FROM customers ORDER BY data_cadastro DESC"
+    
+    where_clause, params = _build_where_clause(start_date=start_date, end_date=end_date)
+    
+    query = f"SELECT {columns_to_fetch} FROM customers{where_clause} ORDER BY data_cadastro DESC"
     try:
-        df = pd.read_sql_query(query, conn)
+        df = pd.read_sql_query(query, conn, params=params)
         # Converte o tipo de dado após a busca
         df['data_cadastro'] = pd.to_datetime(df['data_cadastro'], errors='coerce').dt.date
         return df
@@ -284,21 +293,36 @@ def get_total_customers_count() -> int:
     except sqlite3.Error as e:
         raise DatabaseError(f"Não foi possível contar o total de clientes: {e}") from e
 
-def get_new_customers_current_month_count() -> int:
+def get_new_customers_in_period_count(start_date, end_date) -> int:
+    """Conta novos clientes dentro de um período de datas específico."""
     conn = get_db_connection()
-    query = "SELECT COUNT(id) FROM customers WHERE STRFTIME('%Y-%m', data_cadastro) = STRFTIME('%Y-%m', 'now', 'localtime')"
+    where_clause, params = _build_where_clause(start_date=start_date, end_date=end_date)
+    query = f"SELECT COUNT(id) FROM customers{where_clause}"
     try:
         cursor = conn.cursor()
-        cursor.execute(query)
+        cursor.execute(query, params)
         return cursor.fetchone()[0]
     except sqlite3.Error as e:
-        raise DatabaseError(f"Não foi possível contar novos clientes do mês: {e}") from e
+        raise DatabaseError(f"Não foi possível contar novos clientes do período: {e}") from e
 
-def get_customer_counts_by_state() -> pd.Series:
+def get_customer_counts_by_state(start_date=None, end_date=None) -> pd.Series:
     conn = get_db_connection()
-    query = "SELECT estado, COUNT(id) as count FROM customers WHERE estado IS NOT NULL AND estado != '' GROUP BY estado ORDER BY count DESC"
+    
+    # Adiciona a condição de agrupamento ao WHERE
+    base_query = "SELECT estado, COUNT(id) as count FROM customers"
+    group_by_clause = " GROUP BY estado ORDER BY count DESC"
+    
+    # Constrói a cláusula WHERE
+    where_clause, params = _build_where_clause(start_date=start_date, end_date=end_date)
+
+    # Adiciona condição de estado não nulo
+    if where_clause:
+        query = f"{base_query}{where_clause} AND estado IS NOT NULL AND estado != ''{group_by_clause}"
+    else:
+        query = f"{base_query} WHERE estado IS NOT NULL AND estado != ''{group_by_clause}"
+
     try:
-        df = pd.read_sql_query(query, conn)
+        df = pd.read_sql_query(query, conn, params=params)
         return df.set_index('estado')['count']
     except sqlite3.Error as e:
         raise DatabaseError(f"Não foi possível obter a contagem de clientes por estado: {e}") from e

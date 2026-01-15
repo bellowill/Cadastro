@@ -2,6 +2,7 @@ import streamlit as st
 import pandas as pd
 import database as db
 import altair as alt
+import datetime
 
 st.set_page_config(
     page_title="Dashboard",
@@ -10,55 +11,75 @@ st.set_page_config(
 
 st.title("🏠 Dashboard de Clientes")
 
-# --- Função de Carregamento de Dados para Gráficos e Tabelas (somente colunas necessárias) ---
-@st.cache_data(ttl=600) # Cache de 10 minutos
-def load_dataframe_for_charts():
-    """Busca dados de clientes (apenas colunas necessárias) para gráficos e tabelas."""
-    try:
-        # Usa a função otimizada que busca apenas as colunas necessárias
-        return db.fetch_dashboard_data()
-    except db.DatabaseError as e:
-        st.error(f"Não foi possível carregar os dados para gráficos: {e}")
-        return pd.DataFrame()
+# --- Filtro de Data ---
+st.subheader("Filtro por Período")
+today = datetime.date.today()
+start_of_year = datetime.date(today.year, 1, 1)
 
-# --- Carregar Dados para Gráficos e Tabelas ---
-df_charts = load_dataframe_for_charts()
+# Use st.session_state para manter a seleção de data
+if 'date_range' not in st.session_state:
+    st.session_state.date_range = (start_of_year, today)
+
+date_range = st.date_input(
+    "Selecione o período:",
+    value=st.session_state.date_range,
+    min_value=datetime.date(2020, 1, 1),
+    max_value=today,
+    format="DD/MM/YYYY"
+)
+
+# Atualiza o session_state se o valor mudar
+if len(date_range) == 2:
+    st.session_state.date_range = date_range
+else:
+    # Lida com o caso em que o usuário pode desmarcar uma das datas
+    st.warning("Por favor, selecione um período de início e fim.")
+    st.stop()
+
+start_date, end_date = st.session_state.date_range
+st.markdown("---")
+
+# --- Função de Carregamento de Dados ---
+@st.cache_data(ttl=600)
+def load_data(start, end):
+    """Busca todos os dados necessários para o dashboard dentro de um período."""
+    try:
+        df = db.fetch_dashboard_data(start, end)
+        total_count = db.get_total_customers_count() # Sempre o total geral
+        new_in_period = db.get_new_customers_in_period_count(start, end)
+        by_state = db.get_customer_counts_by_state(start, end)
+        return df, total_count, new_in_period, by_state
+    except db.DatabaseError as e:
+        st.error(f"Não foi possível carregar os dados: {e}")
+        return pd.DataFrame(), 0, 0, pd.Series()
+
+# --- Carregar Dados ---
+df_charts, total_clientes, novos_no_periodo, clientes_por_estado_series = load_data(start_date, end_date)
 
 if df_charts.empty:
     st.info(
-        "Ainda não há clientes cadastrados. "
-        "Vá para a página de '📝 Cadastro' na barra lateral para começar."
+        f"Ainda não há clientes cadastrados no período de **{start_date.strftime('%d/%m/%Y')}** a **{end_date.strftime('%d/%m/%Y')}**. "
+        "Altere o filtro de data ou vá para a página de '📝 Cadastro' para começar."
     )
-    if st.button("Atualizar dados"):
+    if st.button("Limpar Cache e Recarregar"):
         st.cache_data.clear()
         st.rerun()
 else:
-    # --- Preparação dos Dados ---
-    # Ensure 'data_cadastro' is datetime for local dataframe operations
-    df_charts['data_cadastro'] = pd.to_datetime(df_charts['data_cadastro'])
-    
-    # --- Métricas Principais (Otimizadas) ---
-    total_clientes = db.get_total_customers_count()
-    novos_clientes_mes = db.get_new_customers_current_month_count()
-    
-    # These still rely on df_charts
+    # --- Métricas Principais ---
     cliente_recente = df_charts.sort_values(by='data_cadastro', ascending=False).iloc[0]
-    
-    # Get by state from optimized query
-    clientes_por_estado_series = db.get_customer_counts_by_state()
     estado_mais_comum = clientes_por_estado_series.index[0] if not clientes_por_estado_series.empty else "N/A"
 
     col1, col2, col3, col4 = st.columns(4)
     with col1:
-        st.metric(label="Total de Clientes", value=total_clientes)
+        st.metric(label="Total de Clientes (Geral)", value=total_clientes)
     with col2:
-        st.metric(label="Cliente Mais Recente", 
+        st.metric(label="Cliente Mais Recente (no período)", 
                   value=cliente_recente['nome_completo'],
                   help=f"Cadastrado em: {cliente_recente['data_cadastro'].strftime('%d/%m/%Y')}")
     with col3:
-        st.metric(label="Novos Clientes este Mês", value=novos_clientes_mes)
+        st.metric(label="Novos Clientes no Período", value=novos_no_periodo)
     with col4:
-        st.metric(label="Estado Principal", value=estado_mais_comum)
+        st.metric(label="Estado Principal (no período)", value=estado_mais_comum)
 
     st.markdown("---")
 
@@ -75,7 +96,6 @@ else:
 
     with col2:
         st.subheader("Clientes por Estado")
-        # Reutiliza a série otimizada que já foi buscada para a métrica
         if not clientes_por_estado_series.empty:
             clientes_por_estado = clientes_por_estado_series.reset_index()
             clientes_por_estado.columns = ['estado', 'contagem']
@@ -90,18 +110,18 @@ else:
             )
             st.altair_chart(pie_chart, use_container_width=True)
         else:
-            st.info("Não há dados de estado para exibir.")
+            st.info("Não há dados de estado para exibir no período.")
 
     st.markdown("---")
     
     col3, col4, col5 = st.columns(3)
     with col3:
-        st.subheader("Top 5 Cidades")
+        st.subheader("Top 5 Cidades (no período)")
         top_5_cidades = df_charts['cidade'].value_counts().nlargest(5)
         st.bar_chart(top_5_cidades)
 
     with col4:
-        st.subheader("Tipo de Cliente")
+        st.subheader("Tipo de Cliente (no período)")
         tipo_cliente = df_charts['tipo_documento'].value_counts().reset_index()
         tipo_cliente.columns = ['tipo', 'contagem']
         
@@ -116,7 +136,7 @@ else:
         st.altair_chart(donut_chart, width='stretch')
 
     with col5:
-        st.subheader("Últimos 5 Clientes Cadastrados")
+        st.subheader("Últimos 5 Clientes (no período)")
         st.dataframe(
             df_charts[['nome_completo', 'email', 'cidade', 'data_cadastro']]
             .sort_values(by='data_cadastro', ascending=False)

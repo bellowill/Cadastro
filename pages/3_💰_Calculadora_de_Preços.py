@@ -1,12 +1,59 @@
 import streamlit as st
+import json
+import os
 
 st.set_page_config(
     page_title="Calculadora de Preços",
     page_icon="💰"
 )
 
+# --- Gerenciamento de Predefinições ---
+PRESETS_FILE = "presets.json"
+
+def load_presets():
+    """Carrega as predefinições do arquivo JSON."""
+    if os.path.exists(PRESETS_FILE):
+        with open(PRESETS_FILE, 'r') as f:
+            return json.load(f)
+    return {}
+
+def save_presets(presets):
+    """Salva as predefinições no arquivo JSON."""
+    with open(PRESETS_FILE, 'w') as f:
+        json.dump(presets, f, indent=4)
+
+# --- Título e Interface de Predefinições ---
 st.title("💰 Calculadora de Preço para Impressão 3D")
 st.markdown("Altere qualquer campo para recalcular o preço de venda em tempo real.")
+
+with st.container(border=True):
+    st.subheader("💾 Predefinições")
+    presets = load_presets()
+    
+    c1, c2 = st.columns([2,1])
+    
+    with c1:
+        preset_options = [""] + list(presets.keys())
+        selected_preset = st.selectbox("Carregar predefinição", options=preset_options, label_visibility="collapsed")
+
+    if c2.button("Carregar", use_container_width=True, disabled=not selected_preset):
+        st.session_state.calc_inputs = presets[selected_preset]
+        st.success(f"Predefinição '{selected_preset}' carregada!")
+        st.rerun()
+
+    st.markdown("---")
+    c3, c4 = st.columns([2,1])
+    with c3:
+        new_preset_name = st.text_input("Nome da nova predefinição", placeholder="Ex: Peça Pequena PLA")
+    
+    if c4.button("Salvar Predefinição Atual", use_container_width=True):
+        if new_preset_name:
+            presets[new_preset_name] = st.session_state.calc_inputs
+            save_presets(presets)
+            st.success(f"Predefinição '{new_preset_name}' salva!")
+        else:
+            st.warning("Por favor, dê um nome para a predefinição.")
+
 
 # --- Dicionário para guardar todos os inputs ---
 if 'calc_inputs' not in st.session_state:
@@ -80,30 +127,31 @@ st.subheader("⚙️ Insira os Dados do Projeto")
 with st.container(border=True):
     with st.expander("👨‍💻 Custos de Mão de Obra e Tempo", expanded=True):
         c1, c2 = st.columns(2)
-        inputs['design_hours'] = c1.number_input("Horas de design (SolidWorks)", key='des_h', min_value=0.0, step=0.5)
-        inputs['design_rate'] = c2.number_input("Valor da hora de design (R$)", key='des_r', min_value=0.0, step=5.0)
-        inputs['slice_hours'] = c1.number_input("Horas de preparo/fatiamento", key='sli_h', min_value=0.0, step=0.25)
-        inputs['slice_rate'] = c2.number_input("Valor da hora de preparo (R$)", key='sli_r', min_value=0.0, step=5.0)
-        inputs['assembly_hours'] = c1.number_input("Horas de montagem", key='asm_h', min_value=0.0, step=0.25)
-        inputs['assembly_rate'] = c2.number_input("Valor da hora de montagem (R$)", key='asm_r', min_value=0.0, step=5.0)
-        inputs['post_process_h'] = c1.number_input("Horas de pós-processamento", key='pos_h', min_value=0.0, step=0.25)
-        inputs['labor_rate_h'] = c2.number_input("Valor da hora de pós-processamento (R$)", key='pos_r', min_value=0.0, step=5.0)
+        inputs['design_hours'] = c1.number_input("Horas de design (SolidWorks)", key='des_h', min_value=0.0, step=0.5, value=inputs.get('design_hours'))
+        inputs['design_rate'] = c2.number_input("Valor da hora de design (R$)", key='des_r', min_value=0.0, step=5.0, value=inputs.get('design_rate'))
+        inputs['slice_hours'] = c1.number_input("Horas de preparo/fatiamento", key='sli_h', min_value=0.0, step=0.25, value=inputs.get('slice_hours'))
+        inputs['slice_rate'] = c2.number_input("Valor da hora de preparo (R$)", key='sli_r', min_value=0.0, step=5.0, value=inputs.get('slice_rate'))
+        inputs['assembly_hours'] = c1.number_input("Horas de montagem", key='asm_h', min_value=0.0, step=0.25, value=inputs.get('assembly_hours'))
+        inputs['assembly_rate'] = c2.number_input("Valor da hora de montagem (R$)", key='asm_r', min_value=0.0, step=5.0, value=inputs.get('assembly_rate'))
+        inputs['post_process_h'] = c1.number_input("Horas de pós-processamento", key='pos_h', min_value=0.0, step=0.25, value=inputs.get('post_process_h'))
+        inputs['labor_rate_h'] = c2.number_input("Valor da hora de pós-processamento (R$)", key='pos_r', min_value=0.0, step=5.0, value=inputs.get('labor_rate_h'))
 
     with st.expander("🖨️ Custos de Impressão e Material"):
         c1, c2 = st.columns(2)
-        inputs['print_time_h'] = c1.number_input("Tempo de impressão (horas)", key='pri_h', min_value=0.0, step=0.25)
-        inputs['material_weight_g'] = c1.number_input("Peso do material (gramas)", key='mat_w', min_value=0.0, step=1.0)
-        inputs['filament_cost_kg'] = c2.number_input("Custo do filamento (R$ por kg)", key='mat_c', min_value=0.0, step=10.0)
-        inputs['printer_consumption_w'] = c1.number_input("Consumo da impressora (Watts)", key='ele_w', min_value=0.0, step=10.0)
-        inputs['kwh_cost'] = c2.number_input("Custo da eletricidade (R$ por kWh)", key='ele_c', min_value=0.0, step=0.01, format="%.2f")
-        inputs['printer_wear_rate_h'] = c2.number_input("Desgaste da impressora (R$ por hora)", key='wea_r', min_value=0.0, step=0.50, format="%.2f")
+        inputs['print_time_h'] = c1.number_input("Tempo de impressão (horas)", key='pri_h', min_value=0.0, step=0.25, value=inputs.get('print_time_h'))
+        inputs['material_weight_g'] = c1.number_input("Peso do material (gramas)", key='mat_w', min_value=0.0, step=1.0, value=inputs.get('material_weight_g'))
+        inputs['filament_cost_kg'] = c2.number_input("Custo do filamento (R$ por kg)", key='mat_c', min_value=0.0, step=10.0, value=inputs.get('filament_cost_kg'))
+        inputs['printer_consumption_w'] = c1.number_input("Consumo da impressora (Watts)", key='ele_w', min_value=0.0, step=10.0, value=inputs.get('printer_consumption_w'))
+        inputs['kwh_cost'] = c2.number_input("Custo da eletricidade (R$ por kWh)", key='ele_c', min_value=0.0, step=0.01, format="%.2f", value=inputs.get('kwh_cost'))
+        inputs['printer_wear_rate_h'] = c2.number_input("Desgaste da impressora (R$ por hora)", key='wea_r', min_value=0.0, step=0.50, format="%.2f", value=inputs.get('printer_wear_rate_h'))
 
     with st.expander("📈 Fatores de Negócio e Risco"):
         c1, c2 = st.columns(2)
-        inputs['failure_rate_percent'] = c1.number_input("Taxa de falha (%)", key='fai_p', min_value=0.0, max_value=100.0, step=1.0)
-        inputs['complexity_factor'] = c2.number_input("Fator de complexidade (multiplicador)", key='com_f', min_value=1.0, step=0.1, help="Use 1.0 para normal, 1.5 para complexo, etc.")
-        inputs['urgency_fee_percent'] = c1.number_input("Taxa de urgência (%)", key='urg_p', min_value=0.0, max_value=200.0, step=5.0)
-        inputs['profit_margin_percent'] = c2.number_input("Margem de lucro (%)", key='pro_p', min_value=0.0, step=5.0)
+        inputs['failure_rate_percent'] = c1.number_input("Taxa de falha (%)", key='fai_p', min_value=0.0, max_value=100.0, step=1.0, value=inputs.get('failure_rate_percent'))
+        inputs['complexity_factor'] = c2.number_input("Fator de complexidade (multiplicador)", key='com_f', min_value=1.0, step=0.1, help="Use 1.0 para normal, 1.5 para complexo, etc.", value=inputs.get('complexity_factor'))
+        inputs['urgency_fee_percent'] = c1.number_input("Taxa de urgência (%)", key='urg_p', min_value=0.0, max_value=200.0, step=5.0, value=inputs.get('urgency_fee_percent'))
+        inputs['profit_margin_percent'] = c2.number_input("Margem de lucro (%)", key='pro_p', min_value=0.0, step=5.0, value=inputs.get('profit_margin_percent'))
+
 
 st.markdown("---")
 
