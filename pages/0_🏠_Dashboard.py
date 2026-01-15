@@ -20,7 +20,7 @@ start_of_year = datetime.date(today.year, 1, 1)
 if 'date_range' not in st.session_state:
     st.session_state.date_range = (start_of_year, today)
 
-date_range = st.date_input(
+selected_date_range = st.date_input(
     "Selecione o período:",
     value=st.session_state.date_range,
     min_value=datetime.date(2020, 1, 1),
@@ -29,14 +29,17 @@ date_range = st.date_input(
 )
 
 # Atualiza o session_state se o valor mudar
-if len(date_range) == 2:
-    st.session_state.date_range = date_range
-else:
-    # Lida com o caso em que o usuário pode desmarcar uma das datas
+# Garante que selected_date_range é uma tupla antes de verificar seu comprimento
+if isinstance(selected_date_range, tuple) and len(selected_date_range) == 2:
+    start_date, end_date = selected_date_range
+    st.session_state.date_range = (start_date, end_date) # Atualiza o estado da sessão apenas se for válido
+elif isinstance(selected_date_range, datetime.date): # O usuário selecionou apenas uma data
     st.warning("Por favor, selecione um período de início e fim.")
-    st.stop()
+    start_date, end_date = st.session_state.date_range # Retorna ao intervalo válido anterior
+else: # None ou outra entrada inesperada
+    st.warning("Por favor, selecione um período de início e fim.")
+    start_date, end_date = st.session_state.date_range # Retorna ao intervalo válido anterior
 
-start_date, end_date = st.session_state.date_range
 st.markdown("---")
 
 # --- Função de Carregamento de Dados ---
