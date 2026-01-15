@@ -184,13 +184,12 @@ def fetch_dashboard_data() -> pd.DataFrame:
 
 def _get_updates(edited_df: pd.DataFrame, original_df: pd.DataFrame) -> list:
     updates = []
-    # Ensure original_df has 'id' as index for efficient lookup
-    if 'id' in original_df.columns:
-        original_df = original_df.set_index('id')
+    original_df_indexed = original_df.set_index('id')
     
-    for idx, edited_row in edited_df.iterrows():
-        if idx in original_df.index:
-            original_row = original_df.loc[idx]
+    for _, edited_row in edited_df.iterrows():
+        idx = edited_row['id']
+        if idx in original_df_indexed.index:
+            original_row = original_df_indexed.loc[idx]
             
             row_changed = False
             editable_cols = [col for col in DB_COLUMNS if col not in ['id', 'data_cadastro']]
