@@ -12,7 +12,7 @@ st.set_page_config(
     page_icon="📊"
 )
 
-st.title("Banco de Dados de Clientes")
+st.title("📊 Banco de Dados de Clientes")
 
 # ... (código do Modal, Status e process_changes mantido como antes)
 # --- Modal de Confirmação ---
