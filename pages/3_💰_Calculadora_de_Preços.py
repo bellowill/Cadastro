@@ -285,14 +285,13 @@ with st.form("price_calculator_form"):
             inputs['urgency_fee_percent'] = c1.number_input("Taxa de urgência (%)", min_value=0.0, max_value=200.0, step=5.0, value=inputs['urgency_fee_percent'])
             inputs['profit_margin_percent'] = c2.number_input("Margem de lucro (%)", min_value=0.0, step=5.0, value=inputs['profit_margin_percent'])
     
-    # Botões de ação do formulário
-    col_calc, col_clear = st.columns([0.7, 0.3])
-    with col_calc:
-        submitted = st.form_submit_button("Calcular Preço", type="primary", use_container_width=True)
-    with col_clear:
-        if st.button("🧹 Limpar", use_container_width=True):
-            st.session_state.clear_calc_form = True
-            st.rerun()
+    # Botão de submit para o formulário
+    submitted = st.form_submit_button("Calcular Preço", type="primary", use_container_width=True)
+
+# O botão de limpar deve ficar fora do formulário
+if st.button("🧹 Limpar Formulário", use_container_width=True):
+    st.session_state.clear_calc_form = True
+    st.rerun()
 
 # --- Lógica de Cálculo e Exibição ---
 if submitted:
