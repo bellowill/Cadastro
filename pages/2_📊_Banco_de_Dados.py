@@ -64,23 +64,20 @@ try:
     all_states = pd.read_sql_query("SELECT DISTINCT estado FROM customers WHERE estado IS NOT NULL AND estado != '' ORDER BY estado", conn)
     state_options = ["Todos"] + all_states['estado'].tolist()
     state_filter = st.sidebar.selectbox("Filtrar por Estado", options=state_options, on_change=clear_full_export_state)
-
-    doc_type_options = ["Todos", "CPF", "CNPJ"]
-    doc_type_filter = st.sidebar.selectbox("Filtrar por Tipo de Documento", options=doc_type_options, on_change=clear_full_export_state)
 except Exception as e:
     st.sidebar.error("Filtros indisponíveis.")
     st.stop()
 
 # Paginação
 page_size = st.sidebar.selectbox("Itens por página", options=[10, 25, 50, 100], index=0)
-total_records = database.count_total_records(search_query, state_filter, doc_type_filter)
+total_records = database.count_total_records(search_query, state_filter)
 total_pages = math.ceil(total_records / page_size) if total_records > 0 else 1
 page_number = st.sidebar.number_input('Página', min_value=1, max_value=total_pages, value=1, step=1)
 
 st.sidebar.markdown("---")
 
 # --- Lógica Principal e de Exportação ---
-df_page = database.fetch_data(search_query=search_query, state_filter=state_filter, doc_type_filter=doc_type_filter, page=page_number, page_size=page_size)
+df_page = database.fetch_data(search_query=search_query, state_filter=state_filter, page=page_number, page_size=page_size)
 
 if not df_page.empty:
     st.sidebar.download_button(
@@ -100,7 +97,7 @@ if not df_page.empty:
             
         if st.sidebar.button(export_button_label, disabled=not can_export_full):
             with st.spinner(f"Buscando todos os {total_records} registros..."):
-                df_full = database.fetch_data(search_query=search_query, state_filter=state_filter, doc_type_filter=doc_type_filter, page_size=total_records)
+                df_full = database.fetch_data(search_query=search_query, state_filter=state_filter, page_size=total_records)
                 st.session_state.full_export_data = database.df_to_csv(df_full)
 
         if 'full_export_data' in st.session_state:
