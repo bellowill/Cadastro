@@ -170,26 +170,21 @@ with st.expander("💾 Gerenciar Predefinições", expanded=True):
 
 # --- Dicionário para guardar todos os inputs ---
 if 'calc_inputs' not in st.session_state:
-    presets = load_presets() # Carrega as predefinições para inicializar
-    if presets:
-        # Inicializa com a primeira predefinição padrão ou salva
-        st.session_state.calc_inputs = list(presets.values())[0]
-    else:
-        # Fallback para valores zerados se não houver predefinições (improvável com DEFAULT_PRESETS)
-        st.session_state.calc_inputs = {
-            'design_hours': 0.0, 'design_rate': 100.0,
-            'slice_hours': 0.0, 'slice_rate': 40.0,
-            'assembly_hours': 0.0, 'assembly_rate': 30.0,
-            'post_process_h': 0.0, 'labor_rate_h': 30.0,
-            'print_time_h': 0.0,
-            'material_weight_g': 0.0, 'filament_cost_kg': 120.0,
-            'printer_consumption_w': 150.0, 'kwh_cost': 0.78,
-            'printer_wear_rate_h': 1.50,
-            'failure_rate_percent': 5.0,
-            'complexity_factor': 1.0,
-            'urgency_fee_percent': 0.0,
-            'profit_margin_percent': 50.0
-        }
+    # Inicializa com valores neutros para que nenhum cálculo seja exibido na primeira carga
+    st.session_state.calc_inputs = {
+        'design_hours': 0.0, 'design_rate': 100.0,
+        'slice_hours': 0.0, 'slice_rate': 40.0,
+        'assembly_hours': 0.0, 'assembly_rate': 30.0,
+        'post_process_h': 0.0, 'labor_rate_h': 30.0,
+        'print_time_h': 0.0,
+        'material_weight_g': 0.0, 'filament_cost_kg': 120.0,
+        'printer_consumption_w': 150.0, 'kwh_cost': 0.78,
+        'printer_wear_rate_h': 1.50,
+        'failure_rate_percent': 5.0,
+        'complexity_factor': 1.0,
+        'urgency_fee_percent': 0.0,
+        'profit_margin_percent': 50.0
+    }
 
 inputs = st.session_state.calc_inputs
 
