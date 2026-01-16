@@ -10,12 +10,89 @@ st.set_page_config(
 # --- Gerenciamento de Predefinições ---
 PRESETS_FILE = "presets.json"
 
+# Definições de predefinições padrão
+DEFAULT_PRESETS = {
+    "Pequena Peça Simples": {
+        'design_hours': 0.5, 'design_rate': 100.0,
+        'slice_hours': 0.25, 'slice_rate': 40.0,
+        'assembly_hours': 0.0, 'assembly_rate': 30.0,
+        'post_process_h': 0.25, 'labor_rate_h': 30.0,
+        'print_time_h': 1.0,
+        'material_weight_g': 20.0, 'filament_cost_kg': 120.0,
+        'printer_consumption_w': 150.0, 'kwh_cost': 0.78,
+        'printer_wear_rate_h': 1.50,
+        'failure_rate_percent': 5.0,
+        'complexity_factor': 1.0,
+        'urgency_fee_percent': 0.0,
+        'profit_margin_percent': 50.0
+    },
+    "Médio Complexo": {
+        'design_hours': 2.0, 'design_rate': 100.0,
+        'slice_hours': 1.0, 'slice_rate': 40.0,
+        'assembly_hours': 0.5, 'assembly_rate': 30.0,
+        'post_process_h': 1.0, 'labor_rate_h': 30.0,
+        'print_time_h': 5.0,
+        'material_weight_g': 100.0, 'filament_cost_kg': 120.0,
+        'printer_consumption_w': 150.0, 'kwh_cost': 0.78,
+        'printer_wear_rate_h': 1.50,
+        'failure_rate_percent': 10.0,
+        'complexity_factor': 1.2,
+        'urgency_fee_percent': 0.0,
+        'profit_margin_percent': 60.0
+    },
+    "Grande Peça Detalhada": {
+        'design_hours': 5.0, 'design_rate': 100.0,
+        'slice_hours': 2.0, 'slice_rate': 40.0,
+        'assembly_hours': 1.0, 'assembly_rate': 30.0,
+        'post_process_h': 2.0, 'labor_rate_h': 30.0,
+        'print_time_h': 12.0,
+        'material_weight_g': 300.0, 'filament_cost_kg': 120.0,
+        'printer_consumption_w': 150.0, 'kwh_cost': 0.78,
+        'printer_wear_rate_h': 1.50,
+        'failure_rate_percent': 15.0,
+        'complexity_factor': 1.5,
+        'urgency_fee_percent': 0.0,
+        'profit_margin_percent': 70.0
+    },
+    "Prototipagem Rápida": {
+        'design_hours': 1.0, 'design_rate': 100.0,
+        'slice_hours': 0.5, 'slice_rate': 40.0,
+        'assembly_hours': 0.0, 'assembly_rate': 30.0,
+        'post_process_h': 0.0, 'labor_rate_h': 30.0,
+        'print_time_h': 3.0,
+        'material_weight_g': 50.0, 'filament_cost_kg': 120.0,
+        'printer_consumption_w': 150.0, 'kwh_cost': 0.78,
+        'printer_wear_rate_h': 1.50,
+        'failure_rate_percent': 5.0,
+        'complexity_factor': 1.0,
+        'urgency_fee_percent': 0.0,
+        'profit_margin_percent': 40.0
+    },
+    "Serviço Urgente": {
+        'design_hours': 1.0, 'design_rate': 100.0,
+        'slice_hours': 0.5, 'slice_rate': 40.0,
+        'assembly_hours': 0.0, 'assembly_rate': 30.0,
+        'post_process_h': 0.5, 'labor_rate_h': 30.0,
+        'print_time_h': 2.0,
+        'material_weight_g': 30.0, 'filament_cost_kg': 120.0,
+        'printer_consumption_w': 150.0, 'kwh_cost': 0.78,
+        'printer_wear_rate_h': 1.50,
+        'failure_rate_percent': 5.0,
+        'complexity_factor': 1.0,
+        'urgency_fee_percent': 25.0,
+        'profit_margin_percent': 50.0
+    }
+}
+
 def load_presets():
-    """Carrega as predefinições do arquivo JSON."""
+    """Carrega as predefinições do arquivo JSON ou retorna as padrão."""
     if os.path.exists(PRESETS_FILE):
         with open(PRESETS_FILE, 'r') as f:
-            return json.load(f)
-    return {}
+            saved_presets = json.load(f)
+            if saved_presets: # Se houver predefinições salvas, use-as
+                return saved_presets
+    # Se o arquivo não existir ou estiver vazio, use as predefinições padrão
+    return DEFAULT_PRESETS
 
 def save_presets(presets):
     """Salva as predefinições no arquivo JSON."""
@@ -26,51 +103,76 @@ def save_presets(presets):
 st.title("💰 Calculadora de Preço para Impressão 3D")
 st.markdown("Altere qualquer campo para recalcular o preço de venda em tempo real.")
 
-with st.container(border=True):
-    st.subheader("💾 Predefinições")
+with st.expander("💾 Gerenciar Predefinições", expanded=True):
     presets = load_presets()
     
-    c1, c2 = st.columns([2,1])
+    col_select, col_load, col_delete = st.columns([3, 1, 1])
     
-    with c1:
+    with col_select:
         preset_options = [""] + list(presets.keys())
-        selected_preset = st.selectbox("Carregar predefinição", options=preset_options, label_visibility="collapsed")
+        selected_preset = st.selectbox("Selecione uma predefinição:", options=preset_options, label_visibility="collapsed")
 
-    if c2.button("Carregar", use_container_width=True, disabled=not selected_preset):
-        st.session_state.calc_inputs = presets[selected_preset]
-        st.success(f"Predefinição '{selected_preset}' carregada!")
-        st.rerun()
-
-    st.markdown("---")
-    c3, c4 = st.columns([2,1])
-    with c3:
-        new_preset_name = st.text_input("Nome da nova predefinição", placeholder="Ex: Peça Pequena PLA")
+    with col_load:
+        if st.button("Carregar", use_container_width=True, disabled=not selected_preset):
+            st.session_state.calc_inputs = presets[selected_preset]
+            st.success(f"Predefinição '{selected_preset}' carregada!")
+            st.rerun()
     
-    if c4.button("Salvar Predefinição Atual", use_container_width=True):
-        if new_preset_name:
-            presets[new_preset_name] = st.session_state.calc_inputs
-            save_presets(presets)
-            st.success(f"Predefinição '{new_preset_name}' salva!")
-        else:
-            st.warning("Por favor, dê um nome para a predefinição.")
+    with col_delete:
+        if st.button("Excluir", use_container_width=True, disabled=not selected_preset):
+            if selected_preset in presets:
+                st.warning(f"Tem certeza que deseja excluir a predefinição '{selected_preset}'?")
+                col_confirm_del, col_cancel_del = st.columns(2)
+                with col_confirm_del:
+                    if st.button("Confirmar Exclusão", key="confirm_delete"):
+                        del presets[selected_preset]
+                        save_presets(presets)
+                        st.success(f"Predefinição '{selected_preset}' excluída!")
+                        st.rerun()
+                with col_cancel_del:
+                    st.button("Cancelar", key="cancel_delete")
+            else:
+                st.error("Predefinição não encontrada para exclusão.")
+            
+    st.markdown("---")
+    
+    col_save_name, col_save_button = st.columns([3, 1])
+    with col_save_name:
+        new_preset_name = st.text_input("Nome da nova predefinição:", placeholder="Ex: Peça Pequena PLA", label_visibility="collapsed")
+    
+    with col_save_button:
+        if st.button("Salvar Atual", use_container_width=True, help="Salva a configuração atual como uma nova predefinição"):
+            if new_preset_name:
+                presets[new_preset_name] = st.session_state.calc_inputs
+                save_presets(presets)
+                st.success(f"Predefinição '{new_preset_name}' salva!")
+                st.rerun()
+            else:
+                st.warning("Por favor, dê um nome para a predefinição.")
 
 
 # --- Dicionário para guardar todos os inputs ---
 if 'calc_inputs' not in st.session_state:
-    st.session_state.calc_inputs = {
-        'design_hours': 0.0, 'design_rate': 100.0,
-        'slice_hours': 0.0, 'slice_rate': 40.0,
-        'assembly_hours': 0.0, 'assembly_rate': 30.0,
-        'post_process_h': 0.0, 'labor_rate_h': 30.0,
-        'print_time_h': 0.0,
-        'material_weight_g': 0.0, 'filament_cost_kg': 120.0,
-        'printer_consumption_w': 150.0, 'kwh_cost': 0.78,
-        'printer_wear_rate_h': 1.50,
-        'failure_rate_percent': 5.0,
-        'complexity_factor': 1.0,
-        'urgency_fee_percent': 0.0,
-        'profit_margin_percent': 50.0
-    }
+    presets = load_presets() # Carrega as predefinições para inicializar
+    if presets:
+        # Inicializa com a primeira predefinição padrão ou salva
+        st.session_state.calc_inputs = list(presets.values())[0]
+    else:
+        # Fallback para valores zerados se não houver predefinições (improvável com DEFAULT_PRESETS)
+        st.session_state.calc_inputs = {
+            'design_hours': 0.0, 'design_rate': 100.0,
+            'slice_hours': 0.0, 'slice_rate': 40.0,
+            'assembly_hours': 0.0, 'assembly_rate': 30.0,
+            'post_process_h': 0.0, 'labor_rate_h': 30.0,
+            'print_time_h': 0.0,
+            'material_weight_g': 0.0, 'filament_cost_kg': 120.0,
+            'printer_consumption_w': 150.0, 'kwh_cost': 0.78,
+            'printer_wear_rate_h': 1.50,
+            'failure_rate_percent': 5.0,
+            'complexity_factor': 1.0,
+            'urgency_fee_percent': 0.0,
+            'profit_margin_percent': 50.0
+        }
 
 inputs = st.session_state.calc_inputs
 
