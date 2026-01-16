@@ -118,7 +118,7 @@ def insert_customer(data: dict):
         conn.rollback()
         raise DatabaseError(f"Ocorreu um erro ao salvar: {e}") from e
 
-def _build_where_clause(search_query: str = None, state_filter: str = None, start_date=None, end_date=None):
+def _build_where_clause(search_query: str = None, state_filter: str = None, doc_type_filter: str = None, start_date=None, end_date=None):
     params = []
     conditions = []
     if search_query:
@@ -127,6 +127,9 @@ def _build_where_clause(search_query: str = None, state_filter: str = None, star
     if state_filter and state_filter != "Todos":
         conditions.append("estado = ?")
         params.append(state_filter)
+    if doc_type_filter and doc_type_filter != "Todos":
+        conditions.append("tipo_documento = ?")
+        params.append(doc_type_filter)
     
     if start_date and end_date:
         conditions.append("data_cadastro BETWEEN ? AND ?")
@@ -135,10 +138,10 @@ def _build_where_clause(search_query: str = None, state_filter: str = None, star
     where_clause = " WHERE " + " AND ".join(conditions) if conditions else ""
     return where_clause, params
 
-def count_total_records(search_query: str = None, state_filter: str = None) -> int:
+def count_total_records(search_query: str = None, state_filter: str = None, doc_type_filter: str = None) -> int:
     conn = get_db_connection()
     # Note: count_total_records in the data grid does not use date filters, so we don't pass them here.
-    where_clause, params = _build_where_clause(search_query, state_filter)
+    where_clause, params = _build_where_clause(search_query, state_filter, doc_type_filter)
     query = f"SELECT COUNT(id) FROM customers{where_clause}"
     try:
         cursor = conn.cursor()
@@ -147,10 +150,10 @@ def count_total_records(search_query: str = None, state_filter: str = None) -> i
     except sqlite3.Error as e:
         raise DatabaseError(f"Não foi possível contar os registros: {e}") from e
 
-def fetch_data(search_query: str = None, state_filter: str = None, page: int = 1, page_size: int = 10000):
+def fetch_data(search_query: str = None, state_filter: str = None, doc_type_filter: str = None, page: int = 1, page_size: int = 10000):
     conn = get_db_connection()
     # Note: fetch_data for the main grid does not use date filters.
-    where_clause, params = _build_where_clause(search_query, state_filter)
+    where_clause, params = _build_where_clause(search_query, state_filter, doc_type_filter)
     offset = (page - 1) * page_size
     query = f"SELECT {', '.join(ALL_COLUMNS_WITH_ID)} FROM customers{where_clause} ORDER BY id DESC LIMIT ? OFFSET ?"
     

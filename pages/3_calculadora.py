@@ -18,7 +18,7 @@ st.set_page_config(
 )
 
 # --- Gerenciamento de Predefinições ---
-PRESETS_FILE = "presets.json"
+PRESETS_FILE = "data/presets.json"
 
 # Definições de predefinições padrão
 DEFAULT_PRESETS = {
@@ -123,7 +123,7 @@ with st.expander("💾 Gerenciar Predefinições", expanded=True):
         selected_preset = st.selectbox("Selecione uma predefinição:", options=preset_options, label_visibility="collapsed")
 
     with col_load:
-        if st.button("Carregar", width='stretch', disabled=not selected_preset): # Corrigido use_container_width
+        if st.button("Carregar", use_container_width=True, disabled=not selected_preset): # Corrigido use_container_width
             st.session_state.calc_inputs = presets[selected_preset]
             st.success(f"Predefinição '{selected_preset}' carregada!")
             st.rerun()
@@ -131,7 +131,7 @@ with st.expander("💾 Gerenciar Predefinições", expanded=True):
     with col_delete:
         # Usando modal para confirmação de exclusão
         delete_modal = Modal(title=f"Confirmar Exclusão: {selected_preset}", key="delete_preset_modal")
-        if st.button("🗑️", width='stretch', disabled=not selected_preset, help="Excluir predefinição selecionada"): # Corrigido use_container_width
+        if st.button("🗑️", use_container_width=True, disabled=not selected_preset, help="Excluir predefinição selecionada"): # Corrigido use_container_width
             if selected_preset in presets:
                 delete_modal.open()
             else:
@@ -158,7 +158,7 @@ with st.expander("💾 Gerenciar Predefinições", expanded=True):
         new_preset_name = st.text_input("Nome da nova predefinição:", placeholder="Ex: Peça Pequena PLA", label_visibility="collapsed")
     
     with col_save_button:
-        if st.button("💾 Salvar", width='stretch', help="Salva a configuração atual como uma nova predefinição"): # Corrigido use_container_width e ícone de disquete
+        if st.button("💾 Salvar", use_container_width=True, help="Salva a configuração atual como uma nova predefinição"): # Corrigido use_container_width e ícone de disquete
             if new_preset_name:
                 presets[new_preset_name] = st.session_state.calc_inputs
                 save_presets(presets)
