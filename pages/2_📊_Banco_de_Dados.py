@@ -25,7 +25,7 @@ if 'db_status' in st.session_state:
 
 # Helper function to display a field and a copy-able code block (transferida da página de detalhes)
 def display_field_with_copy(label, value, is_date=False, is_text_area=False):
-    """Exibe um campo (desabilitado) e um bloco de código para cópia."""
+    """Exibe o label e um bloco de código para copiar a informação."""
     
     # Converte data para string no formato brasileiro, se aplicável
     if is_date and isinstance(value, (datetime.date, datetime.datetime)):
@@ -35,10 +35,7 @@ def display_field_with_copy(label, value, is_date=False, is_text_area=False):
     else:
         display_value = str(value)
 
-    if is_text_area:
-        st.text_area(label, value=display_value, disabled=True, height=150)
-    else:
-        st.text_input(label, value=display_value, disabled=True)
+    st.text(label) # Display the label explicitly
     
     if display_value:
         st.code(display_value, language=None)
