@@ -173,11 +173,11 @@ if "selected_customer_id" in st.session_state and st.session_state.selected_cust
                     if col1.button("Confirmar Exclusão", type="primary"):
                         st.session_state.delete_confirmed = True # Set flag
                         delete_modal.close() # Close modal immediately
-                        st.rerun() # Rerun to handle deletion outside modal rendering
+                        # No st.rerun() here
                     if col2.button("Cancelar"):
                         st.session_state.cancel_delete = True # Set flag
                         delete_modal.close() # Close modal immediately
-                        st.rerun() # Rerun to clear modal state
+                        # No st.rerun() here
         
         # Handle deletion after modal interaction and rerun (ocorre em uma nova execução)
         if st.session_state.delete_confirmed:
