@@ -112,3 +112,4 @@ validate-docbr==1.11.1
     # via -r requirements.in
 watchdog==6.0.0
     # via streamlit
+streamlit-copy-button

@@ -1,12 +1,14 @@
 import streamlit as st
 import database
 import datetime
+from streamlit_modal import Modal
+from streamlit_copy_button import st_copy_to_clipboard
 
-st.set_page_config(page_title="Detalhes do Cliente", page_icon="📄", layout="wide")
+st.set_page_config(page_title="Detalhes do Cliente", page_icon="📄", layout="centered")
 
-# Helper function to display a field and a copy-able code block
+# Helper function to display a field and a copy-able button
 def display_field_with_copy(label, value, is_date=False, is_text_area=False):
-    """Exibe um campo (desabilitado) e um bloco de código para cópia."""
+    """Exibe um campo (desabilitado) com um botão de cópia ao lado."""
     
     # Converte data para string no formato brasileiro, se aplicável
     if is_date and isinstance(value, (datetime.date, datetime.datetime)):
@@ -18,11 +20,18 @@ def display_field_with_copy(label, value, is_date=False, is_text_area=False):
 
     if is_text_area:
         st.text_area(label, value=display_value, disabled=True, height=150)
+        # For text areas, the copy button should be below
+        if display_value:
+            st_copy_to_clipboard(display_value, label="Copiar Texto", key=f"copy_{label.replace(' ', '_')}")
     else:
-        st.text_input(label, value=display_value, disabled=True)
-    
-    if display_value:
-        st.code(display_value, language=None)
+        col1, col2 = st.columns([0.7, 0.3]) # Adjust column width for better aesthetics
+        with col1:
+            st.text_input(label, value=display_value, disabled=True)
+        with col2:
+            if display_value:
+                # Add some vertical space to align with text input
+                st.markdown("<br>", unsafe_allow_html=True) 
+                st_copy_to_clipboard(display_value, label="Copiar", key=f"copy_{label.replace(' ', '_')}")
     
     st.markdown("---")
 
@@ -65,6 +74,14 @@ st.title(f"📄 Detalhes de: {customer.get('nome_completo')}")
 if st.button("⬅️ Voltar para a lista", use_container_width=True):
     st.switch_page("pages/2_📊_Banco_de_Dados.py")
 
+# --- Exibição de Mensagens de Status ---
+if 'db_status' in st.session_state:
+    status = st.session_state.pop('db_status') 
+    if status.get('success'):
+        st.success(status['message'])
+    else:
+        st.error(status['message'])
+
 st.markdown("---")
 
 
@@ -85,9 +102,7 @@ with st.container(border=True):
     with col_data:
         display_field_with_copy('Data de Nascimento / Fundação', customer.get('data_nascimento'), is_date=True)
 
-with st.container(border=True):
-    st.subheader("Contatos")
-    
+with st.expander("Contatos"):
     display_field_with_copy("Nome do Contato 1", customer.get('contato1'))
     
     col_tel1, col_cargo = st.columns(2)
@@ -104,9 +119,7 @@ with st.container(border=True):
     with col7:
         display_field_with_copy('Telefone 2', customer.get('telefone2'))
 
-with st.container(border=True):
-    st.subheader("Endereço")
-    
+with st.expander("Endereço"):
     display_field_with_copy("CEP", customer.get("cep"))
     
     col_end, col_num = st.columns([3, 1])
@@ -127,11 +140,40 @@ with st.container(border=True):
     with col_estado:
         display_field_with_copy('UF', customer.get('estado'))
 
-with st.container(border=True):
-    st.subheader("Observações")
+with st.expander("Observações"):
     display_field_with_copy("Observações", customer.get('observacao'), is_text_area=True)
 
 with st.container(border=True):
     st.subheader("Informações do Sistema")
     display_field_with_copy("Data de Cadastro", customer.get("data_cadastro"), is_date=True)
     display_field_with_copy("ID do Cliente", customer.get("id"))
+
+st.markdown("---")
+with st.container(border=True):
+    st.subheader("Excluir Cliente")
+    st.warning("Esta ação é irreversível e removerá permanentemente o cliente do banco de dados.")
+
+    delete_modal = Modal("Confirmar Exclusão", key="delete_customer_modal")
+    
+    if st.button("🗑️ Excluir Cliente", type="primary", use_container_width=True):
+        delete_modal.open()
+
+    if delete_modal.is_open():
+        with delete_modal.container():
+            st.warning(f"Tem certeza que deseja excluir o cliente '{customer.get('nome_completo')}' (ID: {customer_id})?")
+            col1, col2 = st.columns(2)
+            if col1.button("Confirmar Exclusão", type="primary"):
+                try:
+                    database.delete_customer_by_id(customer_id)
+                    st.session_state.db_status = {"success": True, "message": f"Cliente '{customer.get('nome_completo')}' (ID: {customer_id}) excluído com sucesso!"}
+                    delete_modal.close()
+                    # Clear session state and go back to the database page
+                    if "selected_customer_id" in st.session_state:
+                        del st.session_state["selected_customer_id"]
+                    st.switch_page("pages/2_📊_Banco_de_Dados.py")
+                except database.DatabaseError as e:
+                    st.session_state.db_status = {"success": False, "message": str(e)}
+                    delete_modal.close()
+                    st.rerun() # Rerun to show error message
+            if col2.button("Cancelar"):
+                delete_modal.close()

@@ -225,6 +225,21 @@ def get_customer_by_id(customer_id: int) -> dict:
     except sqlite3.Error as e:
         raise DatabaseError(f"Erro ao buscar cliente por ID: {e}") from e
 
+def delete_customer_by_id(customer_id: int):
+    """Deleta um cliente do banco de dados pelo seu ID."""
+    conn = get_db_connection()
+    try:
+        cursor = conn.cursor()
+        cursor.execute("DELETE FROM customers WHERE id = ?", (customer_id,))
+        conn.commit()
+        if cursor.rowcount == 0:
+            logging.warning(f"Tentativa de deletar cliente com ID {customer_id} que não existe.")
+            raise DatabaseError(f"Cliente com ID {customer_id} não encontrado.")
+        logging.info(f"Cliente com ID {customer_id} deletado com sucesso.")
+    except sqlite3.Error as e:
+        conn.rollback()
+        logging.error(f"Erro ao deletar cliente com ID {customer_id}: {e}")
+        raise DatabaseError(f"Ocorreu um erro ao deletar o cliente: {e}") from e
 
 def fetch_dashboard_data(start_date=None, end_date=None) -> pd.DataFrame:
     """Busca apenas as colunas necessárias para os gráficos e tabelas do dashboard."""

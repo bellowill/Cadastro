@@ -3,3 +3,4 @@ pandas
 validate-docbr
 email_validator
 streamlit-modal
+streamlit-copy-button
