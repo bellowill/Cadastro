@@ -178,6 +178,54 @@ def fetch_data(search_query: str = None, state_filter: str = None, page: int = 1
     except (pd.io.sql.DatabaseError, sqlite3.Error) as e:
         raise DatabaseError(f"Erro ao buscar dados: {e}") from e
 
+
+def get_customer_by_id(customer_id: int) -> dict:
+    """Busca um único cliente pelo seu ID e retorna como um dicionário."""
+    conn = get_db_connection()
+    # Garante que a conexão retorna um objeto que se comporta como dict
+    conn.row_factory = sqlite3.Row
+    
+    query = f"SELECT {', '.join(ALL_COLUMNS_WITH_ID)} FROM customers WHERE id = ?"
+    
+    try:
+        cursor = conn.cursor()
+        cursor.execute(query, (customer_id,))
+        customer_row = cursor.fetchone()
+        
+        if customer_row:
+            # Converte a linha do banco de dados (Row) em um dicionário
+            customer_dict = dict(customer_row)
+            
+            # Formata as datas e outros campos, similar a `fetch_data`
+            if customer_dict.get('data_nascimento'):
+                try:
+                    customer_dict['data_nascimento'] = pd.to_datetime(customer_dict['data_nascimento'], errors='coerce').date()
+                except (ValueError, TypeError):
+                    customer_dict['data_nascimento'] = None # Ou um valor padrão
+            if customer_dict.get('data_cadastro'):
+                try:
+                    customer_dict['data_cadastro'] = pd.to_datetime(customer_dict['data_cadastro'], errors='coerce').date()
+                except (ValueError, TypeError):
+                    customer_dict['data_cadastro'] = None
+
+            # Usa .get() para segurança, caso a coluna não exista no resultado
+            if customer_dict.get('cpf'):
+                customer_dict['cpf'] = validators.format_cpf(customer_dict.get('cpf'))
+            if customer_dict.get('cnpj'):
+                customer_dict['cnpj'] = validators.format_cnpj(customer_dict.get('cnpj'))
+            if customer_dict.get('telefone1'):
+                customer_dict['telefone1'] = validators.format_whatsapp(customer_dict.get('telefone1'))
+            if customer_dict.get('telefone2'):
+                customer_dict['telefone2'] = validators.format_whatsapp(customer_dict.get('telefone2'))
+
+            return customer_dict
+        else:
+            return None # Retorna None se o cliente não for encontrado
+
+    except sqlite3.Error as e:
+        raise DatabaseError(f"Erro ao buscar cliente por ID: {e}") from e
+
+
 def fetch_dashboard_data(start_date=None, end_date=None) -> pd.DataFrame:
     """Busca apenas as colunas necessárias para os gráficos e tabelas do dashboard."""
     conn = get_db_connection()

@@ -14,42 +14,7 @@ st.set_page_config(
 
 st.title("📊 Banco de Dados de Clientes")
 
-# ... (código do Modal, Status e process_changes mantido como antes)
-# --- Modal de Confirmação ---
-delete_modal = Modal("Confirmar Exclusão", key="delete_modal")
 
-# --- Exibição de Mensagens de Status ---
-if 'db_status' in st.session_state:
-    status = st.session_state.pop('db_status') 
-    if status.get('success'):
-        st.success(status['message'])
-    else:
-        st.error(status['message'])
-
-# --- Funções de Lógica ---
-def process_changes(df_edited, df_original):
-    """Processa e comita as alterações no banco de dados."""
-    try:
-        results = database.commit_changes(df_edited, df_original)
-        updated = results.get("updated", 0)
-        deleted = results.get("deleted", 0)
-        
-        message_parts = []
-        if updated > 0:
-            message_parts.append(f"{updated} registro(s) atualizado(s)")
-        if deleted > 0:
-            message_parts.append(f"{deleted} registro(s) deletado(s)")
-        
-        if message_parts:
-            message = " e ".join(message_parts) + " com sucesso!"
-            st.session_state.db_status = {"success": True, "message": message}
-        else:
-            st.session_state.db_status = {"success": True, "message": "Nenhuma alteração foi detectada."}
-
-    except database.DatabaseError as e:
-        st.session_state.db_status = {"success": False, "message": str(e)}
-    except Exception as e:
-        st.session_state.db_status = {"success": False, "message": f"Ocorreu um erro inesperado: {e}"}
 
 def clear_full_export_state():
     """Limpa o estado da exportação completa quando os filtros mudam."""
@@ -110,66 +75,54 @@ if not df_page.empty:
             )
 # ... (resto do código da Interface de Edição mantido como antes)
 if not df_page.empty:
-    df_for_editing = df_page.copy()
-    df_for_editing.insert(0, 'Deletar', False)
+    st.info("Selecione um cliente na tabela para ver seus detalhes completos.")
 
-    st.info("Marque 'Deletar' para remover um registro ou edite os campos. As alterações são salvas com o botão abaixo.")
-    
+    # Configuração das colunas para a nova visualização
     column_config = {
-        "id": st.column_config.NumberColumn("ID", disabled=True),
-        "Deletar": st.column_config.CheckboxColumn("Deletar?", default=False),
+        "id": st.column_config.NumberColumn("ID"),
         "nome_completo": "Nome Completo",
         "tipo_documento": "Tipo",
-        "cpf": st.column_config.TextColumn("CPF", disabled=True),
-        "cnpj": st.column_config.TextColumn("CNPJ", disabled=True),
+        "cpf": "CPF",
+        "cnpj": "CNPJ",
         "telefone1": "Telefone 1",
         "link_wpp_1": st.column_config.LinkColumn("WhatsApp 1", display_text="🔗 Abrir"),
-        "contato2": "Contato 2",
-        "telefone2": "Telefone 2",
-        "link_wpp_2": st.column_config.LinkColumn("WhatsApp 2", display_text="🔗 Abrir"),
-        "cargo": "Cargo",
-        "email": "E-mail",
-        "data_nascimento": st.column_config.DateColumn("Nascimento/Fundação", format="DD/MM/YYYY"),
-        "observacao": st.column_config.TextColumn("Observação", width="large"),
-        "data_cadastro": st.column_config.DateColumn("Data de Cadastro", format="DD/MM/YYYY", disabled=True),
+        "cidade": "Cidade",
+        "estado": "Estado",
     }
     
-    # Define a ordem desejada das colunas
-    column_order = [
-        'Deletar', 'id', 'nome_completo', 'tipo_documento', 'cpf', 'cnpj',
-        'contato1', 'telefone1', 'link_wpp_1', 'contato2', 'telefone2', 'link_wpp_2', 'cargo', 'email', 
-        'data_nascimento', 'cidade', 'estado', 'observacao'
+    # Define a ordem e quais colunas serão visíveis na grade principal
+    visible_columns = [
+        'id', 'nome_completo', 'tipo_documento', 'cpf', 'cnpj', 
+        'telefone1', 'link_wpp_1', 'cidade', 'estado'
     ]
 
-    edited_df = st.data_editor(
-        df_for_editing,
-        key="data_editor",
-        width='stretch',
+    # Garante que apenas colunas existentes no dataframe são usadas
+    columns_to_display = [col for col in visible_columns if col in df_page.columns]
+
+    st.dataframe(
+        df_page[columns_to_display],
+        key="customer_grid",
+        on_select="rerun",
+        selection_mode="single-row",
         hide_index=True,
-        column_order=column_order,
-        column_config=column_config
+        column_order=columns_to_display,
+        column_config=column_config,
+        use_container_width=True
     )
     
     st.markdown(f"Mostrando **{len(df_page)}** de **{total_records}** registros. Página **{page_number}** de **{total_pages}**.")
 
-    if st.button("Salvar Alterações", width='stretch', disabled=df_page.empty):
-        deletes = edited_df[edited_df['Deletar'] == True]
-        if not deletes.empty:
-            delete_modal.open()
-        else:
-            process_changes(edited_df, df_page.copy())
-            st.rerun()
-            
-    if delete_modal.is_open():
-        with delete_modal.container():
-            st.warning(f"Confirmar a exclusão de {len(edited_df[edited_df['Deletar'] == True])} registro(s)?")
-            col1, col2 = st.columns(2)
-            if col1.button("Confirmar", type="primary"):
-                process_changes(edited_df, df_page.copy())
-                delete_modal.close()
-                st.rerun()
-            if col2.button("Cancelar"):
-                delete_modal.close()
+    # Lógica de seleção
+    grid_state = st.session_state.get("customer_grid")
+    if grid_state and grid_state['selection']['rows']:
+        selected_row_index = grid_state['selection']['rows'][0]
+        selected_customer_id = int(df_page.iloc[selected_row_index]['id'])
+        
+        # Salva o ID no estado da sessão e muda de página
+        st.session_state.selected_customer_id = selected_customer_id
+        grid_state['selection']['rows'] = [] # Limpa a seleção
+        st.switch_page("pages/4_📄_Detalhes_Cliente.py")
+
 else:
     st.info("Nenhum cliente cadastrado corresponde aos filtros aplicados.")
     if st.button("➕ Cadastrar Novo Cliente"):
