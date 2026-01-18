@@ -173,11 +173,13 @@ if "selected_customer_id" in st.session_state and st.session_state.selected_cust
                     if col1.button("Confirmar Exclusão", type="primary"):
                         st.session_state.delete_confirmed = True # Set flag
                         delete_modal.close() # Close modal immediately
-                        # No st.rerun() here
+                        st.rerun() # Re-add rerun
+                        st.stop() # Ensure script stops here
                     if col2.button("Cancelar"):
                         st.session_state.cancel_delete = True # Set flag
                         delete_modal.close() # Close modal immediately
-                        # No st.rerun() here
+                        st.rerun() # Re-add rerun
+                        st.stop() # Ensure script stops here
         
         # Handle deletion after modal interaction and rerun (ocorre em uma nova execução)
         if st.session_state.delete_confirmed:
@@ -190,12 +192,13 @@ if "selected_customer_id" in st.session_state and st.session_state.selected_cust
             except database.DatabaseError as e:
                 st.session_state.db_status = {"success": False, "message": str(e)}
             st.rerun() # Final rerun to update UI with deletion status and potentially hide details
+            st.stop() # Ensure script stops here
         
         if st.session_state.cancel_delete:
             st.session_state.cancel_delete = False # Reset flag
             # No action needed other than clearing the flag, the modal is already closed
             st.rerun() # Rerun to clear modal state
-    else: # Cliente não encontrado
+            st.stop() # Ensure script stops here    else: # Cliente não encontrado
         st.error(f"Cliente com ID {customer_id} não encontrado.")
         if st.button("⬅️ Fechar Detalhes e Voltar", use_container_width=True):
             del st.session_state.selected_customer_id
