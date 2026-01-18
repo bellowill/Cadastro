@@ -40,12 +40,12 @@ def display_field_with_copy(label, value, is_date=False, is_text_area=False):
     if display_value:
         st.code(display_value, language=None)
     
-    st.markdown("---")
+    # st.markdown("---") # Removido para reduzir espaçamento
 
 def clear_full_export_state():
     """Limpa o estado da exportação completa quando os filtros mudam."""
     if 'full_export_data' in st.session_state:
-        del st.session_state.full_export_data
+        del st.session_state.full_full_export_data
 
 # --- Barra Lateral (Filtros, Paginação e Ações) ---
 st.sidebar.header("Filtros e Ações")
@@ -103,7 +103,7 @@ if "selected_customer_id" in st.session_state and st.session_state.selected_cust
             with col_data:
                 display_field_with_copy('Data de Nascimento / Fundação', customer.get('data_nascimento'), is_date=True)
 
-        with st.expander("Contatos"):
+        with st.expander("Contatos", expanded=True): # Alterado para expanded=True
             display_field_with_copy("Nome do Contato 1", customer.get('contato1'))
             
             col_tel1, col_cargo = st.columns(2)
@@ -112,7 +112,7 @@ if "selected_customer_id" in st.session_state and st.session_state.selected_cust
             with col_cargo:
                 display_field_with_copy("Cargo do Contato 1", customer.get('cargo'))
             
-            st.markdown("---")
+            # st.markdown("---") # Removido para reduzir espaçamento
 
             col6, col7 = st.columns([2, 1])
             with col6:
@@ -120,7 +120,7 @@ if "selected_customer_id" in st.session_state and st.session_state.selected_cust
             with col7:
                 display_field_with_copy('Telefone 2', customer.get('telefone2'))
 
-        with st.expander("Endereço"):
+        with st.expander("Endereço", expanded=True): # Alterado para expanded=True
             display_field_with_copy("CEP", customer.get("cep"))
             
             col_end, col_num = st.columns([3, 1])
@@ -141,7 +141,7 @@ if "selected_customer_id" in st.session_state and st.session_state.selected_cust
             with col_estado:
                 display_field_with_copy('UF', customer.get('estado'))
 
-        with st.expander("Observações"):
+        with st.expander("Observações", expanded=True): # Alterado para expanded=True
             display_field_with_copy("Observações", customer.get('observacao'), is_text_area=True)
 
         with st.container(border=True):
