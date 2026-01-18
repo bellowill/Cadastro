@@ -164,41 +164,46 @@ if "selected_customer_id" in st.session_state and st.session_state.selected_cust
             delete_modal = Modal("Confirmar Exclusão", key="delete_customer_modal")
             
             if st.button("🗑️ Excluir Cliente", type="primary", use_container_width=True):
+                st.write("Debug: Botão 'Excluir Cliente' clicado, abrindo modal.")
                 delete_modal.open()
         
             if delete_modal.is_open():
+                st.write("Debug: Modal de exclusão está aberto.")
                 with delete_modal.container():
                     st.warning(f"Tem certeza que deseja excluir o cliente '{customer.get('nome_completo')}' (ID: {customer_id})?")
                     col1, col2 = st.columns(2)
                     if col1.button("Confirmar Exclusão", type="primary"):
+                        st.write("Debug: Botão 'Confirmar Exclusão' clicado.")
                         st.session_state.delete_confirmed = True # Set flag
                         delete_modal.close() # Close modal immediately
-                        st.rerun() # Re-add rerun
-                        st.stop() # Ensure script stops here
+                        st.rerun() # Ensure script restarts
                     if col2.button("Cancelar"):
+                        st.write("Debug: Botão 'Cancelar' clicado.")
                         st.session_state.cancel_delete = True # Set flag
                         delete_modal.close() # Close modal immediately
-                        st.rerun() # Re-add rerun
-                        st.stop() # Ensure script stops here
+                        st.rerun() # Ensure script restarts
         
         # Handle deletion after modal interaction and rerun (ocorre em uma nova execução)
         if st.session_state.delete_confirmed:
+            st.write("Debug: Flag 'delete_confirmed' detectada.")
             st.session_state.delete_confirmed = False # Reset flag
             try:
                 database.delete_customer_by_id(customer_id)
                 st.session_state.db_status = {"success": True, "message": f"Cliente '{customer.get('nome_completo')}' (ID: {customer_id}) excluído com sucesso!"}
                 if "selected_customer_id" in st.session_state:
                     del st.session_state["selected_customer_id"] # Clear selection to hide details
-            except database.DatabaseError as e:
-                st.session_state.db_status = {"success": False, "message": str(e)}
+                st.write(f"Debug: Cliente {customer_id} excluído com sucesso. Rerunning.")
+            except Exception as e: # Catch broader exceptions for debugging
+                st.exception(e) # Display full exception in Streamlit
+                st.session_state.db_status = {"success": False, "message": f"Erro inesperado ao excluir cliente: {e}"}
+                st.write("Debug: Erro durante exclusão. Rerunning.")
             st.rerun() # Final rerun to update UI with deletion status and potentially hide details
-            st.stop() # Ensure script stops here
         
         if st.session_state.cancel_delete:
+            st.write("Debug: Flag 'cancel_delete' detectada.")
             st.session_state.cancel_delete = False # Reset flag
-            # No action needed other than clearing the flag, the modal is already closed
-            st.rerun() # Rerun to clear modal state
-            st.stop() # Ensure script stops here    else: # Cliente não encontrado
+            st.write("Debug: Cancelamento processado. Rerunning.")
+            st.rerun() # Rerun to clear modal state    else: # Cliente não encontrado
         st.error(f"Cliente com ID {customer_id} não encontrado.")
         if st.button("⬅️ Fechar Detalhes e Voltar", use_container_width=True):
             del st.session_state.selected_customer_id
