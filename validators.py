@@ -107,3 +107,21 @@ def get_whatsapp_url(whatsapp: str) -> str:
         return f"https://wa.me/55{whatsapp_cleaned}"
     return "" # Retorna vazio se o número for inválido
 
+def unformat_cpf(cpf: str) -> str:
+    """Remove a formatação de uma string de CPF."""
+    if not cpf:
+        return ""
+    return re.sub(r'[^0-9]', '', cpf)
+
+def unformat_cnpj(cnpj: str) -> str:
+    """Remove a formatação de uma string de CNPJ."""
+    if not cnpj:
+        return ""
+    return re.sub(r'[^0-9]', '', cnpj)
+
+def unformat_whatsapp(whatsapp: str) -> str:
+    """Remove a formatação de uma string de WhatsApp."""
+    if not whatsapp:
+        return ""
+    return re.sub(r'[^0-9]', '', whatsapp)
+

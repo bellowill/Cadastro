@@ -133,6 +133,79 @@ def delete_customer(customer_id: int):
         conn.rollback()
         raise DatabaseError(f"Ocorreu um erro ao excluir o cliente: {e}") from e
 
+def update_customer(customer_id: int, data: dict):
+    """Atualiza os dados de um cliente existente após validação."""
+    data_to_update = {k: v for k, v in data.items() if v is not None}
+
+    conn = get_db_connection()
+    conn.row_factory = sqlite3.Row
+    cursor = conn.cursor()
+    
+    try:
+        # Busca os dados originais para validação completa
+        cursor.execute("SELECT * FROM customers WHERE id = ?", (customer_id,))
+        original_customer_row = cursor.fetchone()
+        if not original_customer_row:
+            raise DatabaseError(f"Cliente com ID {customer_id} não encontrado para atualização.")
+        
+        original_customer_dict = dict(original_customer_row)
+        
+        # Cria uma visão mesclada dos dados para validação
+        merged_data_for_validation = original_customer_dict.copy()
+        merged_data_for_validation.update(data_to_update)
+
+        # Remove a formatação dos campos relevantes antes da validação
+        doc_type = merged_data_for_validation.get('tipo_documento')
+        if doc_type == 'CPF' and 'cpf' in merged_data_for_validation:
+            merged_data_for_validation['cpf'] = validators.unformat_cpf(merged_data_for_validation['cpf'])
+        elif doc_type == 'CNPJ' and 'cnpj' in merged_data_for_validation:
+            merged_data_for_validation['cnpj'] = validators.unformat_cnpj(merged_data_for_validation['cnpj'])
+
+        if 'telefone1' in merged_data_for_validation:
+            merged_data_for_validation['telefone1'] = validators.unformat_whatsapp(merged_data_for_validation['telefone1'])
+        if 'telefone2' in merged_data_for_validation:
+            merged_data_for_validation['telefone2'] = validators.unformat_whatsapp(merged_data_for_validation['telefone2'])
+
+        # Realiza a validação com os dados mesclados e não formatados
+        _validate_row(pd.Series(merged_data_for_validation))
+
+        # Prepara os dados para o update (apenas o que foi alterado)
+        update_payload = {}
+        for key, value in data_to_update.items():
+            # Remove a formatação para salvar no banco
+            if key == 'cpf':
+                update_payload[key] = validators.unformat_cpf(value)
+            elif key == 'cnpj':
+                update_payload[key] = validators.unformat_cnpj(value)
+            elif key in ['telefone1', 'telefone2']:
+                update_payload[key] = validators.unformat_whatsapp(value)
+            else:
+                update_payload[key] = value
+
+        if not update_payload:
+            logging.info(f"Nenhum dado para atualizar para o cliente ID {customer_id}.")
+            return
+
+        # Constrói e executa a query de atualização
+        columns_to_update = ', '.join([f'{key} = ?' for key in update_payload.keys()])
+        sql = f"UPDATE customers SET {columns_to_update} WHERE id = ?"
+        
+        values = list(update_payload.values()) + [customer_id]
+        cursor.execute(sql, values)
+        conn.commit()
+        logging.info(f"Cliente com ID {customer_id} atualizado com sucesso.")
+
+    except (validators.ValidationError, sqlite3.IntegrityError) as e:
+        conn.rollback()
+        logging.error(f"Erro de validação ou integridade ao atualizar cliente ID {customer_id}: {e}")
+        # A mensagem de erro específica de validação já é clara o suficiente
+        raise DuplicateEntryError(str(e)) from e
+    except sqlite3.Error as e:
+        conn.rollback()
+        logging.error(f"Erro de banco de dados ao atualizar cliente ID {customer_id}: {e}")
+        raise DatabaseError(f"Ocorreu um erro de banco de dados ao salvar as alterações: {e}") from e
+
+
 def _build_where_clause(search_query: str = None, state_filter: str = None, start_date=None, end_date=None):
     params = []
     conditions = []

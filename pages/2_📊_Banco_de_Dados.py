@@ -1,247 +1,274 @@
 import streamlit as st
 import pandas as pd
 import database
-import datetime # Adicionado para formatação de data
+import datetime
 from streamlit_modal import Modal
 import math
-import logging # Adicionar esta linha
+import logging
 
-# --- Constantes ---
-EXPORT_LIMIT = 20000 # Limite para exportação completa de dados
-
+# --- Configurações da Página e Constantes ---
 st.set_page_config(
     page_title="Banco de Dados de Clientes",
     page_icon="📊"
 )
+EXPORT_LIMIT = 20000
 
+# --- Funções Auxiliares ---
+
+def display_field_with_copy(label, value, is_date=False, is_text_area=False):
+    """Exibe um campo de texto não editável com um botão para copiar."""
+    display_value = ""
+    if is_date and isinstance(value, (datetime.date, datetime.datetime)):
+        display_value = value.strftime("%d/%m/%Y")
+    elif value is not None:
+        display_value = str(value)
+    
+    st.text(label)
+    if display_value:
+        st.code(display_value, language=None)
+
+def editable_field(label: str, value: any, key: str, is_date=False, is_text_area=False, help_text=None):
+    """
+    Exibe um campo editável (st.text_input, st.date_input, etc.) se o modo de edição estiver ativo.
+    Caso contrário, exibe o valor estático usando display_field_with_copy.
+    """
+    if st.session_state.get('edit_mode', False):
+        # Se o valor for None, usa uma string vazia para os inputs de texto
+        display_value = value if value is not None else ""
+
+        if is_date:
+            # st.date_input não aceita None diretamente, então precisa de um tratamento especial
+            st.session_state.edited_data[key] = st.date_input(
+                label,
+                value=value,
+                key=f"edit_{key}",
+                help=help_text
+            )
+        elif is_text_area:
+            st.session_state.edited_data[key] = st.text_area(
+                label,
+                value=display_value,
+                key=f"edit_{key}",
+                help=help_text
+            )
+        else:
+            st.session_state.edited_data[key] = st.text_input(
+                label,
+                value=display_value,
+                key=f"edit_{key}",
+                help=help_text
+            )
+    else:
+        display_field_with_copy(label, value, is_date=is_date, is_text_area=is_text_area)
+
+# --- Título e Mensagens de Status ---
 st.title("📊 Banco de Dados de Clientes")
 
-# --- Exibição de Mensagens de Status (transferida da página de detalhes) ---
 if 'db_status' in st.session_state:
-    status = st.session_state.pop('db_status') 
+    status = st.session_state.pop('db_status')
     if status.get('success'):
         st.success(status['message'])
     else:
         st.error(status['message'])
 
-# Helper function to display a field and a copy-able code block (transferida da página de detalhes)
-def display_field_with_copy(label, value, is_date=False, is_text_area=False):
-    """Exibe o label e um bloco de código para copiar a informação."""
+# --- Barra Lateral ---
+with st.sidebar:
+    st.header("Filtros e Ações")
+    search_query = st.text_input("Buscar por Nome ou CPF")
     
-    # Converte data para string no formato brasileiro, se aplicável
-    if is_date and isinstance(value, (datetime.date, datetime.datetime)):
-        display_value = value.strftime("%d/%m/%Y")
-    elif value is None:
-        display_value = ""
-    else:
-        display_value = str(value)
+    try:
+        conn = database.get_db_connection()
+        all_states = pd.read_sql_query("SELECT DISTINCT estado FROM customers WHERE estado IS NOT NULL AND estado != '' ORDER BY estado", conn)
+        state_options = ["Todos"] + all_states['estado'].tolist()
+        state_filter = st.selectbox("Filtrar por Estado", options=state_options)
+    except Exception:
+        st.error("Filtros indisponíveis.")
+        st.stop()
 
-    st.text(label) # Display the label explicitly
-    
-    if display_value:
-        st.code(display_value, language=None)
-    
-    # st.markdown("---") # Removido para reduzir espaçamento
+    page_size = st.selectbox("Itens por página", options=[10, 25, 50, 100], index=0)
+    total_records = database.count_total_records(search_query, state_filter)
+    total_pages = math.ceil(total_records / page_size) if total_records > 0 else 1
+    page_number = st.number_input('Página', min_value=1, max_value=total_pages, value=1, step=1)
+    st.markdown("---")
 
-def clear_full_export_state():
-    """Limpa o estado da exportação completa quando os filtros mudam."""
-    if 'full_export_data' in st.session_state:
-        del st.session_state.full_full_export_data
-
-# --- Barra Lateral (Filtros, Paginação e Ações) ---
-st.sidebar.header("Filtros e Ações")
-search_query = st.sidebar.text_input("Buscar por Nome ou CPF", on_change=clear_full_export_state)
-conn = database.get_db_connection()
-try:
-    all_states = pd.read_sql_query("SELECT DISTINCT estado FROM customers WHERE estado IS NOT NULL AND estado != '' ORDER BY estado", conn)
-    state_options = ["Todos"] + all_states['estado'].tolist()
-    state_filter = st.sidebar.selectbox("Filtrar por Estado", options=state_options, on_change=clear_full_export_state)
-except Exception as e:
-    st.sidebar.error("Filtros indisponíveis.")
-    st.stop()
-
-# Paginação
-page_size = st.sidebar.selectbox("Itens por página", options=[10, 25, 50, 100], index=0)
-total_records = database.count_total_records(search_query, state_filter)
-total_pages = math.ceil(total_records / page_size) if total_records > 0 else 1
-page_number = st.sidebar.number_input('Página', min_value=1, max_value=total_pages, value=1, step=1)
-
-st.sidebar.markdown("---")
-
-# --- Lógica Principal e de Exportação ---
-df_page = database.fetch_data(search_query=search_query, state_filter=state_filter, page=page_number, page_size=page_size)
-
-# Verifica se um cliente foi selecionado para exibir os detalhes
+# --- Lógica de Exibição (Detalhes do Cliente ou Tabela) ---
 if "selected_customer_id" in st.session_state and st.session_state.selected_customer_id:
     customer_id = st.session_state.selected_customer_id
     try:
         customer = database.get_customer_by_id(customer_id)
     except database.DatabaseError as e:
         st.error(f"Erro ao buscar dados do cliente: {e}")
-        customer = None # Garante que não tentaremos exibir dados de um cliente que falhou
+        customer = None
 
     if customer:
+        # Inicializa o modo de edição e o dicionário de dados editados
+        if 'edit_mode' not in st.session_state:
+            st.session_state.edit_mode = False
+        if 'edited_data' not in st.session_state:
+            st.session_state.edited_data = {}
+
         st.subheader(f"Detalhes de: {customer.get('nome_completo')}")
+
+        # --- Botões de Ação ---
+        col_close, col_edit, col_delete = st.columns([0.5, 0.25, 0.25])
         
-        col_close, col_delete = st.columns([0.8, 0.2])
         with col_close:
             if st.button("⬅️ Fechar Detalhes", use_container_width=True):
+                st.session_state.edit_mode = False
                 del st.session_state.selected_customer_id
                 st.rerun()
+
+        with col_edit:
+            if st.session_state.edit_mode:
+                if st.button("💾 Salvar Alterações", use_container_width=True, type="primary"):
+                    try:
+                        # Pega apenas os dados que foram realmente alterados
+                        changes_to_save = {}
+                        for key, new_value in st.session_state.edited_data.items():
+                            original_value = customer.get(key)
+                            
+                            # Tratamento especial para datas, que podem vir como objetos datetime
+                            if isinstance(original_value, datetime.date):
+                                original_value = original_value.isoformat()
+                            if isinstance(new_value, datetime.date):
+                                new_value = new_value.isoformat()
+                            
+                            # Considera None e string vazia como "não alterado"
+                            if new_value != original_value and not (new_value in [None, ''] and original_value in [None, '']):
+                                changes_to_save[key] = new_value
+
+                        if changes_to_save:
+                            database.update_customer(customer_id, changes_to_save)
+                            st.session_state['db_status'] = {'success': True, 'message': "Cliente atualizado com sucesso!"}
+                        else:
+                            st.session_state['db_status'] = {'success': True, 'message': "Nenhuma alteração foi feita."}
+                        
+                        st.session_state.edit_mode = False
+                        st.session_state.edited_data = {}
+                        st.rerun()
+
+                    except (database.DatabaseError, database.DuplicateEntryError) as e:
+                        st.session_state['db_status'] = {'success': False, 'message': str(e)}
+                        st.rerun()
+
+            else:
+                if st.button("✏️ Editar Cliente", use_container_width=True):
+                    st.session_state.edit_mode = True
+                    st.session_state.edited_data = customer.copy() # Preenche com dados atuais
+                    st.rerun()
+        
+        # --- Modal de Exclusão ---
         with col_delete:
-            delete_modal = Modal(
-                "Confirmar Exclusão", 
-                key="delete_customer_modal",
-                padding=20,
-                max_width=400
-            )
-            if col_delete.button("🗑️ Excluir Cliente", use_container_width=True):
+            delete_modal = Modal("Confirmar Exclusão", key="delete_modal", padding=20, max_width=400)
+            if st.button("🗑️ Excluir Cliente", use_container_width=True):
                 delete_modal.open()
 
             if delete_modal.is_open():
                 with delete_modal.container():
-                    st.write(f"Tem certeza que deseja excluir o cliente **{customer.get('nome_completo')}** (ID: {customer_id})?")
-                    col_confirm_yes, col_confirm_no = st.columns(2)
-                    with col_confirm_yes:
-                        if st.button("Sim, Excluir", use_container_width=True, type="primary"):
-                            original_customer_id = st.session_state.selected_customer_id # Salva antes de apagar
-                            del st.session_state.selected_customer_id # Limpa para retornar à listagem
-                            
-                            try:
-                                database.delete_customer(original_customer_id)
-                                st.session_state['db_status'] = {'success': True, 'message': f"Cliente (ID: {original_customer_id}) excluído com sucesso!"}
-                            except database.DatabaseError as e:
-                                st.session_state['db_status'] = {'success': False, 'message': f"Erro ao excluir cliente (ID: {original_customer_id}): {e}"}
-
+                    st.write(f"Tem certeza de que deseja excluir o cliente **{customer.get('nome_completo')}**?")
+                    if st.button("Sim, Excluir", type="primary"):
+                        try:
+                            database.delete_customer(customer_id)
+                            st.session_state['db_status'] = {'success': True, 'message': "Cliente excluído com sucesso!"}
+                            del st.session_state.selected_customer_id
+                            st.session_state.edit_mode = False
                             delete_modal.close()
-                            st.rerun() # Re-executa para processar a exclusão
-                    with col_confirm_no:
-                        if st.button("Não, Manter", use_container_width=True):
+                            st.rerun()
+                        except database.DatabaseError as e:
+                            st.session_state['db_status'] = {'success': False, 'message': str(e)}
                             delete_modal.close()
-                            st.rerun() # Re-executa para fechar o modal
-
+                            st.rerun()
+                    if st.button("Não, Manter"):
+                        delete_modal.close()
 
         st.markdown("---")
 
-        # Layout dos detalhes (replicando o da página de cadastro)
+        # --- Campos de Dados (Editáveis ou Estáticos) ---
         with st.container(border=True):
             st.subheader("Dados Principais")
-            
             tipo_doc = customer.get('tipo_documento')
             label_doc = "CPF" if tipo_doc == "CPF" else "CNPJ"
             valor_doc = customer.get('cpf') or customer.get('cnpj')
 
-            display_field_with_copy('Nome Completo / Razão Social', customer.get('nome_completo'))
-            display_field_with_copy(label_doc, valor_doc)
-
+            editable_field('Nome Completo / Razão Social', customer.get('nome_completo'), 'nome_completo')
+            editable_field(label_doc, valor_doc, 'cpf' if tipo_doc == 'CPF' else 'cnpj')
+            
             col_email, col_data = st.columns(2)
             with col_email:
-                display_field_with_copy('E-mail', customer.get('email'))
+                editable_field('E-mail', customer.get('email'), 'email')
             with col_data:
-                display_field_with_copy('Data de Nascimento / Fundação', customer.get('data_nascimento'), is_date=True)
+                editable_field('Data de Nascimento / Fundação', customer.get('data_nascimento'), 'data_nascimento', is_date=True)
 
-        with st.expander("Contatos", expanded=True): # Alterado para expanded=True
-            display_field_with_copy("Nome do Contato 1", customer.get('contato1'))
-            
+        with st.expander("Contatos", expanded=True):
+            editable_field("Nome do Contato 1", customer.get('contato1'), 'contato1')
             col_tel1, col_cargo = st.columns(2)
             with col_tel1:
-                display_field_with_copy('Telefone 1', customer.get('telefone1'))
+                editable_field('Telefone 1', customer.get('telefone1'), 'telefone1')
             with col_cargo:
-                display_field_with_copy("Cargo do Contato 1", customer.get('cargo'))
+                editable_field("Cargo do Contato 1", customer.get('cargo'), 'cargo')
             
-            # st.markdown("---") # Removido para reduzir espaçamento
+            editable_field("Nome do Contato 2", customer.get('contato2'), 'contato2')
+            editable_field('Telefone 2', customer.get('telefone2'), 'telefone2')
 
-            col6, col7 = st.columns([2, 1])
-            with col6:
-                display_field_with_copy("Nome do Contato 2", customer.get('contato2'))
-            with col7:
-                display_field_with_copy('Telefone 2', customer.get('telefone2'))
-
-        with st.expander("Endereço", expanded=True): # Alterado para expanded=True
-            display_field_with_copy("CEP", customer.get("cep"))
-            
+        with st.expander("Endereço", expanded=True):
+            editable_field("CEP", customer.get("cep"), 'cep')
             col_end, col_num = st.columns([3, 1])
             with col_end:
-                display_field_with_copy('Endereço', customer.get('endereco'))
+                editable_field('Endereço', customer.get('endereco'), 'endereco')
             with col_num:
-                display_field_with_copy('Número', customer.get('numero'))
+                editable_field('Número', customer.get('numero'), 'numero')
 
             col_bairro, col_comp = st.columns(2)
             with col_bairro:
-                display_field_with_copy('Bairro', customer.get('bairro'))
+                editable_field('Bairro', customer.get('bairro'), 'bairro')
             with col_comp:
-                display_field_with_copy('Complemento', customer.get('complemento'))
+                editable_field('Complemento', customer.get('complemento'), 'complemento')
 
             col_cidade, col_estado = st.columns([3, 1])
             with col_cidade:
-                display_field_with_copy('Cidade', customer.get('cidade'))
+                editable_field('Cidade', customer.get('cidade'), 'cidade')
             with col_estado:
-                display_field_with_copy('UF', customer.get('estado'))
+                editable_field('UF', customer.get('estado'), 'estado')
 
-        with st.expander("Observações", expanded=True): # Alterado para expanded=True
-            display_field_with_copy("Observações", customer.get('observacao'), is_text_area=True)
+        with st.expander("Observações", expanded=True):
+            editable_field("Observações", customer.get('observacao'), 'observacao', is_text_area=True)
 
         with st.container(border=True):
             st.subheader("Informações do Sistema")
             display_field_with_copy("Data de Cadastro", customer.get("data_cadastro"), is_date=True)
             display_field_with_copy("ID do Cliente", customer.get("id"))
-        
 
-    else: # Cliente não encontrado
+    else:
         st.error(f"Cliente com ID {customer_id} não encontrado.")
-        if st.button("⬅️ Fechar Detalhes e Voltar", use_container_width=True):
+        if st.button("⬅️ Voltar para a lista"):
             del st.session_state.selected_customer_id
             st.rerun()
-
-else: # Nenhum cliente selecionado, exibe a tabela
+else:
+    # --- Tabela de Clientes ---
+    df_page = database.fetch_data(search_query, state_filter, page_number, page_size)
     if not df_page.empty:
         st.info("Selecione um cliente na tabela para ver seus detalhes completos.")
-
-        # Configuração das colunas para a nova visualização
+        
         column_config = {
             "id": st.column_config.NumberColumn("ID"),
-            "nome_completo": "Nome Completo",
-            "tipo_documento": "Tipo",
-            "cpf": "CPF",
-            "cnpj": "CNPJ",
-            "telefone1": "Telefone 1",
-            "link_wpp_1": st.column_config.LinkColumn("WhatsApp 1", display_text="🔗 Abrir"),
-            "cidade": "Cidade",
-            "estado": "Estado",
+            "nome_completo": "Nome Completo", "tipo_documento": "Tipo", "cpf": "CPF", "cnpj": "CNPJ",
+            "telefone1": "Telefone 1", "link_wpp_1": st.column_config.LinkColumn("WhatsApp 1", display_text="🔗 Abrir"),
+            "cidade": "Cidade", "estado": "Estado",
         }
+        visible_columns = ['id', 'nome_completo', 'tipo_documento', 'cpf', 'cnpj', 'telefone1', 'link_wpp_1', 'cidade', 'estado']
         
-        # Define a ordem e quais colunas serão visíveis na grade principal
-        visible_columns = [
-            'id', 'nome_completo', 'tipo_documento', 'cpf', 'cnpj', 
-            'telefone1', 'link_wpp_1', 'cidade', 'estado'
-        ]
-
-        # Garante que apenas colunas existentes no dataframe são usadas
-        columns_to_display = [col for col in visible_columns if col in df_page.columns]
-
         st.dataframe(
-            df_page[columns_to_display],
-            key="customer_grid",
-            on_select="rerun",
-            selection_mode="single-row",
-            hide_index=True,
-            column_order=columns_to_display,
-            column_config=column_config,
-            use_container_width=True
+            df_page[[col for col in visible_columns if col in df_page.columns]],
+            key="customer_grid", on_select="rerun", selection_mode="single-row",
+            hide_index=True, column_config=column_config, use_container_width=True
         )
-        
         st.markdown(f"Mostrando **{len(df_page)}** de **{total_records}** registros. Página **{page_number}** de **{total_pages}**.")
-
-        # Lógica de seleção
-        grid_state = st.session_state.get("customer_grid")
-        if grid_state and grid_state['selection']['rows']:
-            selected_row_index = grid_state['selection']['rows'][0]
-            selected_customer_id = int(df_page.iloc[selected_row_index]['id'])
-            
-            # Salva o ID no estado da sessão e muda de página
-            st.session_state.selected_customer_id = selected_customer_id
-            grid_state['selection']['rows'] = [] # Limpa a seleção
-            st.rerun() # Rerun para exibir os detalhes na mesma página
+        
+        # Lógica para pegar seleção da tabela
+        if st.session_state.customer_grid['selection']['rows']:
+            selected_id = int(df_page.iloc[st.session_state.customer_grid['selection']['rows'][0]]['id'])
+            st.session_state.selected_customer_id = selected_id
+            st.rerun()
 
     else:
         st.info("Nenhum cliente cadastrado corresponde aos filtros aplicados.")
