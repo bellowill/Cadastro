@@ -195,7 +195,7 @@ if "selected_customer_id" in st.session_state and st.session_state.selected_cust
             st.session_state.cancel_delete = False # Reset flag
             # No action needed other than clearing the flag, the modal is already closed
             st.rerun() # Rerun to clear modal state
-            else: # Cliente não encontrado
+    else: # Cliente não encontrado
         st.error(f"Cliente com ID {customer_id} não encontrado.")
         if st.button("⬅️ Fechar Detalhes e Voltar", use_container_width=True):
             del st.session_state.selected_customer_id
