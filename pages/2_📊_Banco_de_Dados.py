@@ -27,7 +27,7 @@ def display_field_with_copy(label, value, is_date=False, is_text_area=False):
     if display_value:
         st.code(display_value, language=None)
 
-def editable_field(label: str, value: any, key: str, is_date=False, is_text_area=False, help_text=None):
+def editable_field(label: str, value: any, key: str, is_date=False, is_text_area=False, help_text=None, customer_data: dict = None):
     """
     Exibe um campo editável (st.text_input, st.date_input, etc.) se o modo de edição estiver ativo.
     Caso contrário, exibe o valor estático usando display_field_with_copy.
@@ -59,7 +59,29 @@ def editable_field(label: str, value: any, key: str, is_date=False, is_text_area
                 help=help_text
             )
     else:
-        display_field_with_copy(label, value, is_date=is_date, is_text_area=is_text_area)
+        if label == 'Endereço' and customer_data:
+            address_parts = [
+                customer_data.get('endereco'),
+                customer_data.get('numero'),
+                customer_data.get('bairro'),
+                customer_data.get('cidade'),
+                customer_data.get('estado'),
+                customer_data.get('cep')
+            ]
+            
+            full_address = ", ".join(filter(None, address_parts))
+            
+            if full_address:
+                query_address = f"{customer_data.get('endereco') or ''} {customer_data.get('numero') or ''}, {customer_data.get('cidade') or ''}, {customer_data.get('estado') or ''}, {customer_data.get('cep') or ''}".strip().replace(" ", "+")
+                google_maps_url = f"https://www.google.com/maps/search/?api=1&query={query_address}"
+
+                st.text("Endereço")
+                st.markdown(f"<a href='{google_maps_url}' target='_blank' style='text-decoration: none;'><code style='background-color: #eee; padding: 2px 4px; border-radius: 3px;'>{full_address}</code></a>", unsafe_allow_html=True)
+            else:
+                st.text("Endereço")
+                st.code("Nenhum endereço fornecido", language=None)
+        else:
+            display_field_with_copy(label, value, is_date=is_date, is_text_area=is_text_area)
 
 # --- Título e Mensagens de Status ---
 st.title("📊 Banco de Dados de Clientes")
@@ -211,24 +233,24 @@ if "selected_customer_id" in st.session_state and st.session_state.selected_cust
             editable_field('Telefone 2', customer.get('telefone2'), 'telefone2')
 
         with st.expander("Endereço", expanded=True):
-            editable_field("CEP", customer.get("cep"), 'cep')
+            editable_field("CEP", customer.get("cep"), 'cep', customer_data=customer)
             col_end, col_num = st.columns([3, 1])
             with col_end:
-                editable_field('Endereço', customer.get('endereco'), 'endereco')
+                editable_field('Endereço', customer.get('endereco'), 'endereco', customer_data=customer)
             with col_num:
-                editable_field('Número', customer.get('numero'), 'numero')
+                editable_field('Número', customer.get('numero'), 'numero', customer_data=customer)
 
             col_bairro, col_comp = st.columns(2)
             with col_bairro:
-                editable_field('Bairro', customer.get('bairro'), 'bairro')
+                editable_field('Bairro', customer.get('bairro'), 'bairro', customer_data=customer)
             with col_comp:
-                editable_field('Complemento', customer.get('complemento'), 'complemento')
+                editable_field('Complemento', customer.get('complemento'), 'complemento', customer_data=customer)
 
             col_cidade, col_estado = st.columns([3, 1])
             with col_cidade:
-                editable_field('Cidade', customer.get('cidade'), 'cidade')
+                editable_field('Cidade', customer.get('cidade'), 'cidade', customer_data=customer)
             with col_estado:
-                editable_field('UF', customer.get('estado'), 'estado')
+                editable_field('UF', customer.get('estado'), 'estado', customer_data=customer)
 
         with st.expander("Observações", expanded=True):
             editable_field("Observações", customer.get('observacao'), 'observacao', is_text_area=True)
