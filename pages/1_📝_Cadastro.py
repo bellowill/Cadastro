@@ -154,15 +154,16 @@ with st.container(border=True):
                 cargo = st.text_input("Cargo do Contato 1", key="form_cargo")
 
             st.markdown("---")
-
-            col6, col_icon2, col7 = st.columns([0.8, 0.1, 0.1])
-            with col6:
-                contato2 = st.text_input("Nome do Contato 2", key="form_contato2")
+            # Contato 2 Nome (largura total)
+            contato2 = st.text_input("Nome do Contato 2", key="form_contato2")
+            
+            # Contato 2 Telefone (em uma nova linha com seu ícone)
+            col_tel2, col_icon2 = st.columns([0.9, 0.1])
+            with col_tel2:
+                telefone2 = st.text_input('Telefone 2', key="form_telefone2")
             with col_icon2:
                  if WHATSAPP_ICON:
                     st.markdown(f'<div style="padding-top: 28px;"><a href="#" id="whatsapp-link-2" target="_blank"><img src="data:image/png;base64,{WHATSAPP_ICON}" width="25"></a></div>', unsafe_allow_html=True)
-            with col7:
-                telefone2 = st.text_input('Telefone 2', key="form_telefone2")
 
         # --- Injeção de JavaScript para links dinâmicos ---
         # Este script é uma solução alternativa e pode quebrar em futuras versões do Streamlit
