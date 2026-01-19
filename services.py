@@ -68,12 +68,12 @@ def send_new_customer_email(customer_data: dict, customer_id: int):
     from email.mime.multipart import MIMEMultipart
 
     # --- Verifica se os segredos para o e-mail estão configurados ---
-    if not all(k in st.secrets for k in ["GMAIL_USERNAME", "GMAIL_PASSWORD"]):
-        st.warning("As credenciais de e-mail não foram configuradas. A notificação não será enviada.")
+    if not all(k in st.secrets for k in ["name", "key"]):
+        st.warning("As credenciais de e-mail ('name', 'key') não foram configuradas nos Segredos do Streamlit. A notificação não será enviada.")
         return
 
-    sender_email = st.secrets["GMAIL_USERNAME"]
-    password = st.secrets["GMAIL_PASSWORD"]
+    sender_email = st.secrets["name"]
+    password = st.secrets["key"]
     receiver_email = sender_email # Envia o e-mail para si mesmo
 
     # --- Monta o corpo do e-mail ---
