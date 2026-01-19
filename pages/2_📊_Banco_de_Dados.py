@@ -133,7 +133,7 @@ if "selected_customer_id" in st.session_state and st.session_state.selected_cust
         st.subheader(f"Detalhes de: {customer.get('nome_completo')}")
 
         # --- Botões de Ação ---
-        col_close, col_edit, col_map, col_delete = st.columns([0.4, 0.2, 0.2, 0.2])
+        col_close, col_map, col_edit, col_delete = st.columns([0.4, 0.2, 0.2, 0.2])
         
         with col_close:
             if st.button("⬅️ Fechar Detalhes", width='stretch'):
@@ -141,6 +141,26 @@ if "selected_customer_id" in st.session_state and st.session_state.selected_cust
                 del st.session_state.selected_customer_id
                 st.rerun()
 
+        with col_map:
+            import urllib.parse # Import moved here to be within the function scope, or can be moved to top level imports
+            address_parts = [
+                customer.get('endereco'),
+                customer.get('numero'),
+                customer.get('bairro'),
+                customer.get('cidade'),
+                customer.get('estado'),
+                customer.get('cep')
+            ]
+            
+            full_address_for_maps = ", ".join(filter(None, address_parts))
+            
+            if full_address_for_maps:
+                query_address_encoded = urllib.parse.quote_plus(full_address_for_maps)
+                google_maps_url = f"https://www.google.com/maps/search/?api=1&query={query_address_encoded}"
+                st.link_button("(abrir no mapa)", url=google_maps_url, help="Abrir endereço do cliente no Google Maps", type="secondary", use_container_width=True)
+            else:
+                st.button("📍 Abrir no Mapa", help="Endereço não disponível para navegação", disabled=True, use_container_width=True)
+        
         with col_edit:
             if st.session_state.edit_mode:
                 if st.button("💾 Salvar Alterações", width='stretch', type="primary"):
@@ -179,26 +199,6 @@ if "selected_customer_id" in st.session_state and st.session_state.selected_cust
                     st.session_state.edit_mode = True
                     st.session_state.edited_data = customer.copy() # Preenche com dados atuais
                     st.rerun()
-
-        with col_map:
-            import urllib.parse # Import moved here to be within the function scope, or can be moved to top level imports
-            address_parts = [
-                customer.get('endereco'),
-                customer.get('numero'),
-                customer.get('bairro'),
-                customer.get('cidade'),
-                customer.get('estado'),
-                customer.get('cep')
-            ]
-            
-            full_address_for_maps = ", ".join(filter(None, address_parts))
-            
-            if full_address_for_maps:
-                query_address_encoded = urllib.parse.quote_plus(full_address_for_maps)
-                google_maps_url = f"https://www.google.com/maps/search/?api=1&query={query_address_encoded}"
-                st.link_button("📍 Abrir no Mapa", url=google_maps_url, help="Abrir endereço no Google Maps", type="secondary", use_container_width=True)
-            else:
-                st.button("📍 Abrir no Mapa", help="Endereço não disponível para navegação", disabled=True, use_container_width=True)
         
         
         # --- Modal de Exclusão ---
