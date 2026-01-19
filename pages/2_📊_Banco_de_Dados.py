@@ -68,39 +68,35 @@ def display_field_with_copy(label, value, is_date=False, is_text_area=False):
     if display_value:
         st.code(display_value, language=None)
 
-def editable_field(label: str, value: any, key: str, is_date=False, is_text_area=False, help_text=None, customer_data: dict = None):
+def editable_field(label: str, value: any, key: str, is_date=False, is_text_area=False, help_text=None, is_phone=False):
     """
-    Exibe um campo editável (st.text_input, st.date_input, etc.) se o modo de edição estiver ativo.
-    Caso contrário, exibe o valor estático usando display_field_with_copy.
+    Exibe um campo editável ou estático, com tratamento especial para campos de telefone.
     """
     if st.session_state.get('edit_mode', False):
-        # Se o valor for None, usa uma string vazia para os inputs de texto
+        # MODO DE EDIÇÃO: Renderiza widgets de input
         display_value = value if value is not None else ""
-
         if is_date:
-            # st.date_input não aceita None diretamente, então precisa de um tratamento especial
-            st.session_state.edited_data[key] = st.date_input(
-                label,
-                value=value,
-                key=f"edit_{key}",
-                help=help_text
-            )
+            st.session_state.edited_data[key] = st.date_input(label, value=value, key=f"edit_{key}", help=help_text)
         elif is_text_area:
-            st.session_state.edited_data[key] = st.text_area(
-                label,
-                value=display_value,
-                key=f"edit_{key}",
-                help=help_text
-            )
+            st.session_state.edited_data[key] = st.text_area(label, value=display_value, key=f"edit_{key}", help=help_text)
         else:
-            st.session_state.edited_data[key] = st.text_input(
-                label,
-                value=display_value,
-                key=f"edit_{key}",
-                help=help_text
-            )
+            st.session_state.edited_data[key] = st.text_input(label, value=display_value, key=f"edit_{key}", help=help_text)
     else:
-        display_field_with_copy(label, value, is_date=is_date, is_text_area=is_text_area)
+        # MODO DE VISUALIZAÇÃO: Renderiza texto estático
+        if is_phone:
+            # Layout especial para telefone com ícone
+            col_text, col_icon = st.columns([0.9, 0.1])
+            with col_text:
+                display_field_with_copy(label, value, is_date, is_text_area)
+            with col_icon:
+                if value and WHATSAPP_ICON:
+                    st.markdown('<div style="height: 28px;"></div>', unsafe_allow_html=True) # Spacer para alinhar
+                    unformatted_phone = validators.unformat_whatsapp(value)
+                    whatsapp_url = validators.get_whatsapp_url(unformatted_phone)
+                    st.markdown(f'<a href="{whatsapp_url}" target="_blank"><img src="data:image/png;base64,{WHATSAPP_ICON}" width="25"></a>', unsafe_allow_html=True)
+        else:
+            # Layout padrão para outros campos
+            display_field_with_copy(label, value, is_date, is_text_area)
 
 # --- Título e Mensagens de Status ---
 st.title("📊 Banco de Dados de Clientes")
@@ -263,35 +259,16 @@ if "selected_customer_id" in st.session_state and st.session_state.selected_cust
         with st.expander("Contatos", expanded=True):
             editable_field("Nome do Contato 1", customer.get('contato1'), 'contato1')
             
-            # --- Telefone 1 com Ícone WhatsApp ---
-            col_tel1, col_icon1, col_cargo = st.columns([0.45, 0.1, 0.45])
-            with col_tel1:
-                editable_field('Telefone 1', customer.get('telefone1'), 'telefone1')
-            with col_icon1:
-                if customer.get('telefone1') and WHATSAPP_ICON:
-                    st.markdown("##") # Espaçador para alinhar verticalmente
-                    unformatted_phone = validators.unformat_whatsapp(customer.get('telefone1'))
-                    whatsapp_url = validators.get_whatsapp_url(unformatted_phone)
-                    st.markdown(f'<a href="{whatsapp_url}" target="_blank"><img src="data:image/png;base64,{WHATSAPP_ICON}" width="25"></a>', unsafe_allow_html=True)
-            with col_cargo:
-                editable_field("Cargo do Contato 1", customer.get('cargo'), 'cargo')
+            # A nova função editable_field agora cuida do layout do ícone
+            editable_field('Telefone 1', customer.get('telefone1'), 'telefone1', is_phone=True)
+            editable_field("Cargo do Contato 1", customer.get('cargo'), 'cargo')
             
             st.markdown("---")
             editable_field("Nome do Contato 2", customer.get('contato2'), 'contato2')
-            
-            # --- Telefone 2 com Ícone WhatsApp ---
-            col_tel2, col_icon2 = st.columns([0.9, 0.1])
-            with col_tel2:
-                editable_field('Telefone 2', customer.get('telefone2'), 'telefone2')
-            with col_icon2:
-                if customer.get('telefone2') and WHATSAPP_ICON:
-                    st.markdown("##") # Espaçador
-                    unformatted_phone_2 = validators.unformat_whatsapp(customer.get('telefone2'))
-                    whatsapp_url_2 = validators.get_whatsapp_url(unformatted_phone_2)
-                    st.markdown(f'<a href="{whatsapp_url_2}" target="_blank"><img src="data:image/png;base64,{WHATSAPP_ICON}" width="25"></a>', unsafe_allow_html=True)
+            editable_field('Telefone 2', customer.get('telefone2'), 'telefone2', is_phone=True)
 
         with st.expander("Endereço", expanded=True):
-            editable_field("CEP", customer.get("cep"), 'cep', customer_data=customer)
+            editable_field("CEP", customer.get("cep"), 'cep')
             col_end, col_num = st.columns([3, 1])
             with col_end:
                 editable_field('Endereço', customer.get('endereco'), 'endereco', customer_data=customer)
