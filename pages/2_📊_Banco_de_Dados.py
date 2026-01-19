@@ -94,7 +94,7 @@ def editable_field(label: str, value: any, key: str, is_date=False, is_text_area
                     whatsapp_url = validators.get_whatsapp_url(unformatted_phone)
                     st.markdown(
                         f"""
-                        <div style="padding-top: 40px;">
+                        <div style="padding-top: 45px;">
                             <a href="{whatsapp_url}" target="_blank">
                                 <img src="data:image/png;base64,{WHATSAPP_ICON}" width="25">
                             </a>
