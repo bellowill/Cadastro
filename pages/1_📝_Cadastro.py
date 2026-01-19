@@ -77,10 +77,26 @@ with st.container(border=True):
             label_visibility="collapsed" # The subheader acts as the label
         )
 
+    # We read the value from session state to determine the label
+    tipo_selecionado = st.session_state.get("form_tipo_documento", "CPF")
+    
+    # --- Lógica de Busca de CNPJ (fora do formulário principal) ---
+    if tipo_selecionado == "CNPJ":
+        with st.container():
+            col_cnpj_input, col_cnpj_btn = st.columns([0.7, 0.3])
+            with col_cnpj_input:
+                # Usamos uma chave diferente para o input de CNPJ na busca para não conflitar com o do formulário
+                cnpj_to_search = st.text_input("CNPJ para busca", key="cnpj_search_input", label_visibility="collapsed", placeholder="Digite o CNPJ para buscar dados")
+            with col_cnpj_btn:
+                if st.button("🔎 Buscar CNPJ", use_container_width=True):
+                    # O valor do input do CNPJ do formulário é atualizado com o valor da busca
+                    st.session_state.form_documento = cnpj_to_search
+                    services.fetch_cnpj_data(cnpj_to_search)
+                    st.rerun()
+        st.markdown("---")
+
+
     with st.form(key="new_customer_form", clear_on_submit=False):
-        # We read the value from session state to determine the label
-        tipo_selecionado = st.session_state.get("form_tipo_documento", "CPF")
-        
         nome = st.text_input('Nome Completo / Razão Social *', key="form_nome")
 
         label_documento = "CPF *" if tipo_selecionado == "CPF" else "CNPJ *"

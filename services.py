@@ -22,3 +22,42 @@ def fetch_address_data(cep):
             st.session_state.form_estado = data.get("uf", "")
     except requests.exceptions.RequestException as e:
         st.session_state.cep_notification = {"type": "error", "message": f"Erro de rede ao buscar o CEP: {e}"}
+
+def fetch_cnpj_data(cnpj):
+    """Busca dados de um CNPJ na BrasilAPI e atualiza o estado do formulário."""
+    cnpj_cleaned = re.sub(r'[^0-9]', '', cnpj)
+    if len(cnpj_cleaned) != 14:
+        st.session_state.form_error = "CNPJ inválido. Deve conter 14 dígitos."
+        return
+
+    try:
+        with st.spinner("Buscando dados do CNPJ..."):
+            response = requests.get(f"https://brasilapi.com.br/api/cnpj/v1/{cnpj_cleaned}", timeout=10)
+            # A BrasilAPI retorna 404 para CNPJ não encontrado, o que causa um HTTPError
+            if response.status_code == 404:
+                st.session_state.form_error = f"CNPJ não encontrado ou inválido: {cnpj}"
+                return
+            response.raise_for_status()
+            data = response.json()
+
+        # Atualiza os campos do formulário no st.session_state
+        st.session_state.form_nome = data.get("razao_social", "")
+        st.session_state.form_email = data.get("email", "")
+        st.session_state.form_telefone1 = data.get("ddd_telefone_1", "")
+        
+        # Preenche o endereço
+        st.session_state.cep_input = data.get("cep", "")
+        st.session_state.form_endereco = data.get("logradouro", "")
+        st.session_state.form_numero = data.get("numero", "")
+        st.session_state.form_complemento = data.get("complemento", "")
+        st.session_state.form_bairro = data.get("bairro", "")
+        st.session_state.form_cidade = data.get("municipio", "")
+        st.session_state.form_estado = data.get("uf", "")
+
+        st.success("Dados do CNPJ preenchidos com sucesso!")
+
+    except requests.exceptions.RequestException as e:
+        st.session_state.form_error = f"Erro de rede ao buscar o CNPJ: {e}"
+    except Exception as e:
+        st.session_state.form_error = f"Ocorreu um erro inesperado ao processar os dados do CNPJ: {e}"
+
