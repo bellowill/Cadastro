@@ -101,13 +101,13 @@ with st.expander("💾 Gerenciar Predefinições", expanded=True):
         preset_options = [""] + list(presets.keys())
         selected_preset = st.selectbox("Selecione uma predefinição:", options=preset_options, label_visibility="collapsed")
     with col_load:
-        if st.button("Carregar", use_container_width=True, disabled=not selected_preset):
+        if st.button("Carregar", width='stretch', disabled=not selected_preset):
             load_preset_into_state(presets[selected_preset])
             st.success(f"Predefinição '{selected_preset}' carregada!")
             st.rerun()
     with col_delete:
         delete_modal = Modal(title=f"Confirmar Exclusão: {selected_preset}", key="delete_preset_modal")
-        if st.button("🗑️", use_container_width=True, disabled=not selected_preset, help="Excluir predefinição selecionada"):
+        if st.button("🗑️", width='stretch', disabled=not selected_preset, help="Excluir predefinição selecionada"):
             if selected_preset in presets: delete_modal.open()
             else: st.error("Predefinição não encontrada para exclusão.")
         if delete_modal.is_open():
@@ -126,7 +126,7 @@ with st.expander("💾 Gerenciar Predefinições", expanded=True):
             
     st.markdown("---")
     save_modal = Modal("Salvar Predefinição", key="save_preset_modal")
-    if st.button("💾 Salvar Configuração Atual", use_container_width=True):
+    if st.button("💾 Salvar Configuração Atual", width='stretch'):
         save_modal.open()
     if save_modal.is_open():
         with save_modal.container():
@@ -174,9 +174,9 @@ with st.form("price_calculator_form"):
             c1.number_input("Taxa de urgência (%)", min_value=0.0, max_value=200.0, step=5.0, key='urgency_fee_percent')
             c2.number_input("Margem de lucro (%)", min_value=0.0, step=5.0, key='profit_margin_percent')
     
-    submitted = st.form_submit_button("Calcular Preço", type="primary", use_container_width=True)
+    submitted = st.form_submit_button("Calcular Preço", type="primary", width='stretch')
 
-if st.button("🧹 Limpar Formulário", use_container_width=True):
+if st.button("🧹 Limpar Formulário", width='stretch'):
     st.session_state.clear_calc_form = True
     st.rerun()
 

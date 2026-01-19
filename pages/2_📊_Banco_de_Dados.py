@@ -152,7 +152,7 @@ if "selected_customer_id" in st.session_state and st.session_state.selected_cust
                         st.rerun()
 
             else:
-                if st.button("✏️ Editar Cliente", use_container_width=True):
+                if st.button("✏️ Editar Cliente", width='stretch'):
                     st.session_state.edit_mode = True
                     st.session_state.edited_data = customer.copy() # Preenche com dados atuais
                     st.rerun()
@@ -160,7 +160,7 @@ if "selected_customer_id" in st.session_state and st.session_state.selected_cust
         # --- Modal de Exclusão ---
         with col_delete:
             delete_modal = Modal("Confirmar Exclusão", key="delete_modal", padding=20, max_width=400)
-            if st.button("🗑️ Excluir Cliente", use_container_width=True):
+            if st.button("🗑️ Excluir Cliente", width='stretch'):
                 delete_modal.open()
 
             if delete_modal.is_open():
@@ -260,7 +260,7 @@ else:
         st.dataframe(
             df_page[[col for col in visible_columns if col in df_page.columns]],
             key="customer_grid", on_select="rerun", selection_mode="single-row",
-            hide_index=True, column_config=column_config, use_container_width=True
+            hide_index=True, column_config=column_config, width='stretch'
         )
         st.markdown(f"Mostrando **{len(df_page)}** de **{total_records}** registros. Página **{page_number}** de **{total_pages}**.")
         

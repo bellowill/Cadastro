@@ -28,7 +28,7 @@ try:
             data=fp,
             file_name=backup_filename,
             mime="application/octet-stream",
-            use_container_width=True
+            width='stretch'
         )
 except FileNotFoundError:
     st.error(f"O arquivo do banco de dados (`{DB_FILE}`) não foi encontrado. Cadastre pelo menos um cliente para criar o banco de dados e poder fazer o backup.")
