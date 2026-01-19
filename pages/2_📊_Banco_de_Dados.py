@@ -60,29 +60,7 @@ def editable_field(label: str, value: any, key: str, is_date=False, is_text_area
                 help=help_text
             )
     else:
-        if label == 'Endereço' and customer_data:
-            address_parts = [
-                customer_data.get('endereco'),
-                customer_data.get('numero'),
-                customer_data.get('bairro'),
-                customer_data.get('cidade'),
-                customer_data.get('estado'),
-                customer_data.get('cep')
-            ]
-            
-            full_address = ", ".join(filter(None, address_parts))
-            
-            if full_address:
-                query_address = f"{customer_data.get('endereco') or ''} {customer_data.get('numero') or ''}, {customer_data.get('cidade') or ''}, {customer_data.get('estado') or ''}, {customer_data.get('cep') or ''}".strip().replace(" ", "+")
-                google_maps_url = f"https://www.google.com/maps/search/?api=1&query={query_address}"
-
-                st.text("Endereço")
-                st.markdown(f"<a href='{google_maps_url}' target='_blank' style='text-decoration: none;'><code style='background-color: #eee; padding: 2px 4px; border-radius: 3px;'>{full_address}</code></a>", unsafe_allow_html=True)
-            else:
-                st.text("Endereço")
-                st.code("Nenhum endereço fornecido", language=None)
-        else:
-            display_field_with_copy(label, value, is_date=is_date, is_text_area=is_text_area)
+        display_field_with_copy(label, value, is_date=is_date, is_text_area=is_text_area)
 
 # --- Título e Mensagens de Status ---
 st.title("📊 Banco de Dados de Clientes")
