@@ -82,8 +82,8 @@ def send_new_customer_email(customer_data: dict, customer_id: int):
     message["From"] = sender_email
     message["To"] = receiver_email
 
-    # Constrói a URL do App com o link fornecido pelo usuário
-    app_url = f"https://wbello3d.streamlit.app/2_📊_Banco_de_Dados?id={customer_id}"
+    # Constrói a URL do App com o link fornecido pelo usuário e o caminho "amigável" da página
+    app_url = f"https://wbello3d.streamlit.app/Banco_de_Dados?id={customer_id}"
 
     text_body = f"""
     Um novo cliente foi cadastrado no sistema.
