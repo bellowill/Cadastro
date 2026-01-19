@@ -14,9 +14,15 @@ st.set_page_config(
 )
 EXPORT_LIMIT = 20000
 
-# Inicializa o estado para controlar a exibição dos detalhes do cliente
-if 'show_customer_details' not in st.session_state:
-    st.session_state.show_customer_details = False
+# Lógica para garantir que os detalhes do cliente sejam fechados ao retornar à página
+# Somente resetamos selected_customer_id se não há uma seleção ativa na tabela NESTA execução
+if 'selected_customer_id' in st.session_state and st.session_state.selected_customer_id is not None:
+    # Verifica se a 'customer_grid' existe na session_state e se há linhas selecionadas
+    # Se não houver 'customer_grid' ou se não houver linhas selecionadas, resetamos.
+    if not st.session_state.get('customer_grid', {}).get('selection', {}).get('rows', []):
+        st.session_state.selected_customer_id = None
+        st.rerun() # Dispara um rerun para atualizar a UI imediatamente
+
 
 # --- Funções Auxiliares ---
 
@@ -97,7 +103,7 @@ with st.sidebar:
     st.markdown("---")
 
 # --- Lógica de Exibição (Detalhes do Cliente ou Tabela) ---
-if st.session_state.get('show_customer_details', False) and st.session_state.get('selected_customer_id'):
+if "selected_customer_id" in st.session_state and st.session_state.selected_customer_id:
     customer_id = st.session_state.selected_customer_id
     try:
         customer = database.get_customer_by_id(customer_id)
@@ -121,7 +127,6 @@ if st.session_state.get('show_customer_details', False) and st.session_state.get
             if st.button("⬅️ Fechar Detalhes", width='stretch'):
                 st.session_state.edit_mode = False
                 del st.session_state.selected_customer_id
-                st.session_state.show_customer_details = False 
                 st.rerun()
 
         with col_map:
@@ -268,7 +273,6 @@ if st.session_state.get('show_customer_details', False) and st.session_state.get
         st.error(f"Cliente com ID {customer_id} não encontrado.")
         if st.button("⬅️ Voltar para a lista"):
             del st.session_state.selected_customer_id
-            st.session_state.show_customer_details = False 
             st.rerun()
 else:
     # --- Tabela de Clientes ---
@@ -295,7 +299,6 @@ else:
         if st.session_state.customer_grid['selection']['rows']:
             selected_id = int(df_page.iloc[st.session_state.customer_grid['selection']['rows'][0]]['id'])
             st.session_state.selected_customer_id = selected_id
-            st.session_state.show_customer_details = True 
             st.rerun()
 
     else:
