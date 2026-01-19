@@ -90,7 +90,8 @@ def editable_field(label: str, value: any, key: str, is_date=False, is_text_area
                 display_field_with_copy(label, value, is_date, is_text_area)
             with col_icon:
                 if value and WHATSAPP_ICON:
-                    st.markdown('<div style="height: 28px;"></div>', unsafe_allow_html=True) # Spacer para alinhar
+                    # O padding-top é um "ajuste mágico" para alinhar o ícone com o texto do st.code
+                    st.markdown('<div style="padding-top: 35px;"></div>', unsafe_allow_html=True)
                     unformatted_phone = validators.unformat_whatsapp(value)
                     whatsapp_url = validators.get_whatsapp_url(unformatted_phone)
                     st.markdown(f'<a href="{whatsapp_url}" target="_blank"><img src="data:image/png;base64,{WHATSAPP_ICON}" width="25"></a>', unsafe_allow_html=True)
