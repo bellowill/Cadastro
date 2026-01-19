@@ -157,7 +157,7 @@ if "selected_customer_id" in st.session_state and st.session_state.selected_cust
             if full_address_for_maps:
                 query_address_encoded = urllib.parse.quote_plus(full_address_for_maps)
                 google_maps_url = f"https://www.google.com/maps/search/?api=1&query={query_address_encoded}"
-                st.link_button("(abrir no mapa)", url=google_maps_url, help="Abrir endereço do cliente no Google Maps", type="secondary", use_container_width=True)
+                st.link_button("📍 Abrir no Mapa", url=google_maps_url, help="Abrir endereço do cliente no Google Maps", type="secondary", use_container_width=True)
             else:
                 st.button("📍 Abrir no Mapa", help="Endereço não disponível para navegação", disabled=True, use_container_width=True)
         
