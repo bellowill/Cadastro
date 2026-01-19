@@ -279,21 +279,21 @@ if "selected_customer_id" in st.session_state and st.session_state.selected_cust
             editable_field("CEP", customer.get("cep"), 'cep')
             col_end, col_num = st.columns([3, 1])
             with col_end:
-                editable_field('Endereço', customer.get('endereco'), 'endereco', customer_data=customer)
+                editable_field('Endereço', customer.get('endereco'), 'endereco')
             with col_num:
-                editable_field('Número', customer.get('numero'), 'numero', customer_data=customer)
+                editable_field('Número', customer.get('numero'), 'numero')
 
             col_bairro, col_comp = st.columns(2)
             with col_bairro:
-                editable_field('Bairro', customer.get('bairro'), 'bairro', customer_data=customer)
+                editable_field('Bairro', customer.get('bairro'), 'bairro')
             with col_comp:
-                editable_field('Complemento', customer.get('complemento'), 'complemento', customer_data=customer)
+                editable_field('Complemento', customer.get('complemento'), 'complemento')
 
             col_cidade, col_estado = st.columns([3, 1])
             with col_cidade:
-                editable_field('Cidade', customer.get('cidade'), 'cidade', customer_data=customer)
+                editable_field('Cidade', customer.get('cidade'), 'cidade')
             with col_estado:
-                editable_field('UF', customer.get('estado'), 'estado', customer_data=customer)
+                editable_field('UF', customer.get('estado'), 'estado')
 
         with st.expander("Observações", expanded=True):
             editable_field("Observações", customer.get('observacao'), 'observacao', is_text_area=True)
