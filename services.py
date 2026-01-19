@@ -45,8 +45,8 @@ def fetch_cnpj_data(cnpj):
         st.session_state.form_email = data.get("email", "")
         st.session_state.form_telefone1 = data.get("ddd_telefone_1", "")
         
-        # Preenche o endereço
-        st.session_state.cep_input = data.get("cep", "")
+        # Preenche o endereço, usando uma chave temporária para o CEP
+        st.session_state.cep_from_cnpj = data.get("cep", "")
         st.session_state.form_endereco = data.get("logradouro", "")
         st.session_state.form_numero = data.get("numero", "")
         st.session_state.form_complemento = data.get("complemento", "")

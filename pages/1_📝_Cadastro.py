@@ -23,6 +23,15 @@ def clear_form_inputs():
         else:
             st.session_state[key] = ""
 
+# --- Lógica para o botão 'Usar nome do cliente' ---
+if st.session_state.get("use_client_name_for_contact", False):
+    st.session_state.form_contato1 = st.session_state.get("form_nome", "")
+    st.session_state.use_client_name_for_contact = False
+
+# --- Lógica para atualizar o CEP vindo da busca de CNPJ ---
+if "cep_from_cnpj" in st.session_state:
+    st.session_state.cep_input = st.session_state.pop("cep_from_cnpj")
+
 # --- Lógica de Estado ---
 # Exibe notificações da busca de CEP
 if 'cep_notification' in st.session_state:
