@@ -1,0 +1,47 @@
+/* styles.css */
+
+/* Melhorar a aparência dos blocos de métricas */
+div[data-testid="stMetric"] {
+    background-color: #333;
+    border-radius: 10px;
+    padding: 20px;
+    text-align: center;
+}
+
+/* Estilizar os títulos das subseções */
+h2 {
+    border-bottom: 2px solid #f63366;
+    padding-bottom: 10px;
+}
+
+/* Customizar a aparência das tabelas */
+.stDataFrame {
+    border-radius: 10px;
+    overflow: hidden;
+}
+
+.stDataFrame table {
+    width: 100%;
+    background-color: #333;
+}
+
+.stDataFrame th {
+    background-color: #f63366;
+    color: white;
+    font-weight: bold;
+}
+
+.stDataFrame td, .stDataFrame th {
+    padding: 12px;
+    text-align: left;
+}
+
+/* Efeito de hover nas linhas da tabela */
+.stDataFrame tr:hover {
+    background-color: #444;
+}
+
+/* Adicionar um ícone ou emoji personalizado para os expanders */
+.st-expander-header {
+    font-size: 1.2rem;
+}
