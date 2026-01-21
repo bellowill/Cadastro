@@ -140,13 +140,6 @@ with st.container(border=True):
                     st.rerun()
         st.markdown("---")
 
-    # --- Formulário Principal (apenas campos secundários) ---
-    with st.form(key="new_customer_form", clear_on_submit=False):
-        col_email, col_data = st.columns(2)
-        with col_email:
-            email = st.text_input('E-mail', key="form_email")
-        with col_data:
-            data_nascimento = st.date_input('Data de Nascimento / Fundação', value=None, min_value=datetime.date(1900, 1, 1), key="form_data_nascimento")
 
         with st.expander("Contatos"):
             use_client_name = st.checkbox("Usar nome do cliente como Contato 1", key="form_use_client_name", on_change=update_contato1_from_nome)
@@ -178,6 +171,38 @@ with st.container(border=True):
             with col_icon2:
                  if WHATSAPP_ICON:
                     st.markdown(f'<div style="padding-top: 28px;"><a href="#" id="whatsapp-link-2" target="_blank"><img src="data:image/png;base64,{WHATSAPP_ICON}" width="25"></a></div>', unsafe_allow_html=True)
+    # --- Formulário Principal (apenas campos secundários) ---
+    with st.form(key="new_customer_form", clear_on_submit=False):
+        col_email, col_data = st.columns(2)
+        with col_email:
+            email = st.text_input('E-mail', key="form_email")
+        with col_data:
+            data_nascimento = st.date_input('Data de Nascimento / Fundação', value=None, min_value=datetime.date(1900, 1, 1), key="form_data_nascimento")
+
+        with st.expander("Endereço"):
+            col_end, col_num = st.columns([3, 1])
+            with col_end:
+                endereco = st.text_input('Endereço', key="form_endereco")
+            with col_num:
+                numero = st.text_input('Número', key="form_numero")
+
+            col_bairro, col_comp = st.columns(2)
+            with col_bairro:
+                bairro = st.text_input('Bairro', key="form_bairro")
+            with col_comp:
+                complemento = st.text_input('Complemento', key="form_complemento")
+
+            col_cidade, col_estado = st.columns([3, 1])
+            with col_cidade:
+                cidade = st.text_input('Cidade', key="form_cidade")
+            with col_estado:
+                estado = st.text_input('UF', max_chars=2, key="form_estado")
+        
+        with st.expander("Observações"):
+            observacao = st.text_area("Observações", "", height=150, max_chars=1000, key="form_observacao")
+
+        st.markdown("---")
+        submit_button = st.form_submit_button('Salvar Cliente', type="primary", use_container_width=True)
 
         # --- Injeção de JavaScript para links dinâmicos ---
         js_code = """
@@ -208,31 +233,6 @@ with st.container(border=True):
         </script>
         """
         st.components.v1.html(js_code, height=0)
-
-        with st.expander("Endereço"):
-            col_end, col_num = st.columns([3, 1])
-            with col_end:
-                endereco = st.text_input('Endereço', key="form_endereco")
-            with col_num:
-                numero = st.text_input('Número', key="form_numero")
-
-            col_bairro, col_comp = st.columns(2)
-            with col_bairro:
-                bairro = st.text_input('Bairro', key="form_bairro")
-            with col_comp:
-                complemento = st.text_input('Complemento', key="form_complemento")
-
-            col_cidade, col_estado = st.columns([3, 1])
-            with col_cidade:
-                cidade = st.text_input('Cidade', key="form_cidade")
-            with col_estado:
-                estado = st.text_input('UF', max_chars=2, key="form_estado")
-        
-        with st.expander("Observações"):
-            observacao = st.text_area("Observações", "", height=150, max_chars=1000, key="form_observacao")
-
-        st.markdown("---")
-        submit_button = st.form_submit_button('Salvar Cliente', type="primary", use_container_width=True)
 
 if submit_button:
     cpf_valor, cnpj_valor = (validators.format_cpf(st.session_state.form_documento), None) if tipo_selecionado == "CPF" else (None, validators.format_cnpj(st.session_state.form_documento))
