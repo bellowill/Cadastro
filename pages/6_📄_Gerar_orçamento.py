@@ -79,7 +79,7 @@ with st.form("new_item_form", clear_on_submit=True):
         st.session_state.items.append({"description": description, "quantity": quantity, "price": price})
 
 # Tabela de itens
-if st.session_state.items:
+if st.session_state.items and isinstance(st.session_state.items, list) and all(isinstance(item, dict) for item in st.session_state.items):
     df = pd.DataFrame(st.session_state.items)
     df["Total"] = df["quantity"] * df["price"]
     
