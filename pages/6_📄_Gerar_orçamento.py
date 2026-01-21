@@ -1,6 +1,6 @@
 import streamlit as st
 import datetime
-from database import get_all_customers
+from database import fetch_data
 import pandas as pd
 
 # --- Configuração da Página ---
@@ -18,8 +18,11 @@ st.sidebar.markdown("contato@wbello3d.com")
 
 # --- Carregar Clientes ---
 try:
-    customers = get_all_customers()
-    customer_names = [c['nome_completo'] for c in customers]
+    customers_df = fetch_data()
+    if not customers_df.empty:
+        customer_names = customers_df['nome_completo'].tolist()
+    else:
+        customer_names = []
 except Exception as e:
     st.error(f"Não foi possível carregar os clientes: {e}")
     customer_names = []
@@ -29,8 +32,9 @@ st.header("1. Selecione o Cliente")
 selected_customer_name = st.selectbox("Selecione um cliente para o orçamento:", options=customer_names)
 
 # --- Exibir dados do cliente selecionado ---
-if selected_customer_name:
-    customer_details = next((c for c in customers if c['nome_completo'] == selected_customer_name), None)
+if selected_customer_name and 'customers_df' in locals() and not customers_df.empty:
+    customer_details_row = customers_df[customers_df['nome_completo'] == selected_customer_name]
+    customer_details = customer_details_row.to_dict('records')[0] if not customer_details_row.empty else None
     if customer_details:
         with st.expander("Dados do Cliente", expanded=True):
             col1, col2 = st.columns(2)
