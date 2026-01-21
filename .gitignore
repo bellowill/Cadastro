@@ -1,0 +1,20 @@
+# SQLite database
+customers.db
+
+# Python cache
+__pycache__/
+*.pyc
+
+# IDE / Editor specific
+.vscode/
+.idea/
+
+# Virtual environment
+venv/
+
+# Pip-tools
+*.py[cod]
+.requirements.txt.un~
+
+# Pytest
+.pytest_cache/
