@@ -76,6 +76,8 @@ with st.form("new_item_form", clear_on_submit=True):
     
     submitted = st.form_submit_button("Adicionar Item")
     if submitted and description:
+        if not isinstance(st.session_state.get('items'), list):
+            st.session_state.items = []
         st.session_state.items.append({"description": description, "quantity": quantity, "price": price})
 
 # Tabela de itens
