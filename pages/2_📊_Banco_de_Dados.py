@@ -50,10 +50,9 @@ def clear_full_export_state():
 # --- Barra Lateral (Filtros, Paginação e Ações) ---
 st.sidebar.header("Filtros e Ações")
 search_query = st.sidebar.text_input("Buscar por Nome ou CPF", on_change=clear_full_export_state)
-conn = database.get_db_connection()
 try:
-    all_states = pd.read_sql_query("SELECT DISTINCT estado FROM customers WHERE estado IS NOT NULL AND estado != '' ORDER BY estado", conn)
-    state_options = ["Todos"] + all_states['estado'].tolist()
+    all_states_series = database.get_customer_counts_by_state()
+    state_options = ["Todos"] + sorted(all_states_series.index.tolist())
     state_filter = st.sidebar.selectbox("Filtrar por Estado", options=state_options, on_change=clear_full_export_state)
 except Exception as e:
     st.sidebar.error("Filtros indisponíveis.")
