@@ -1,78 +1,38 @@
-import sqlite3
 import pandas as pd
 import streamlit as st
 import logging
 import validators
+from supabase import create_client, Client
 
 logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(levelname)s - %(message)s')
 
 class DatabaseError(Exception):
-    """Exceção base para erros de banco de dados."""
     pass
 
 class DuplicateEntryError(DatabaseError):
-    """Exceção para entradas duplicadas (CPF/CNPJ)."""
     pass
 
-# --- Constantes de Colunas ---
 DB_COLUMNS = [
     'nome_completo', 'tipo_documento', 'cpf', 'cnpj', 
     'contato1', 'telefone1', 'contato2', 'telefone2', 'cargo',
     'email', 'data_nascimento', 
     'cep', 'endereco', 'numero', 'complemento', 'bairro', 'cidade', 'estado',
-    'observacao', 'data_cadastro' 
+    'observacao', 'data_cadastro'
 ]
 ALL_COLUMNS_WITH_ID = ['id'] + DB_COLUMNS
 
-
 @st.cache_resource
-def get_db_connection():
-    """Cria e retorna uma conexão com o banco de dados, e garante que o esquema da tabela está atualizado."""
-    conn = sqlite3.connect('customers.db', check_same_thread=False)
-    cursor = conn.cursor()
-    
-    # Verifica se a tabela já tem o novo esquema
-    cursor.execute("PRAGMA table_info(customers)")
-    columns = [row[1] for row in cursor.fetchall()]
-    if 'tipo_documento' not in columns:
-        cursor.execute("DROP TABLE IF EXISTS customers")
-        logging.info("Tabela 'customers' antiga encontrada e descartada.")
+def get_supabase_client() -> Client:
+    url = st.secrets.get("SUPABASE_URL")
+    key = st.secrets.get("SUPABASE_KEY")
+    if not url or not key:
+        st.error("Por favor, configure SUPABASE_URL e SUPABASE_KEY no arquivo .streamlit/secrets.toml")
+        st.stop()
+    return create_client(url, key)
 
-    cursor.execute('''
-        CREATE TABLE IF NOT EXISTS customers (
-            id INTEGER PRIMARY KEY,
-            nome_completo TEXT NOT NULL,
-            tipo_documento TEXT NOT NULL,
-            cpf TEXT UNIQUE,
-            cnpj TEXT UNIQUE,
-            contato1 TEXT,
-            telefone1 TEXT,
-            contato2 TEXT,
-            telefone2 TEXT,
-            cargo TEXT,
-            email TEXT,
-            data_nascimento DATE,
-            cep TEXT,
-            endereco TEXT,
-            numero TEXT,
-            complemento TEXT,
-            bairro TEXT,
-            cidade TEXT,
-            estado TEXT,
-            observacao TEXT,
-            data_cadastro DATE DEFAULT (date('now')),
-            CHECK (
-                (tipo_documento = 'CPF' AND cpf IS NOT NULL) OR 
-                (tipo_documento = 'CNPJ' AND cnpj IS NOT NULL)
-            )
-        )
-    ''')
-    conn.commit()
-    logging.info("Conexão com o banco de dados estabelecida e tabela garantida.")
-    return conn
+supabase = get_supabase_client()
 
 def _validate_row(row: pd.Series):
-    """Valida os dados de uma linha antes de inserir/atualizar."""
     doc_type = row.get('tipo_documento')
     if not row.get('nome_completo') or not doc_type:
         raise validators.ValidationError("Os campos 'Nome Completo' e 'Tipo de Documento' são obrigatórios.")
@@ -94,169 +54,124 @@ def _validate_row(row: pd.Series):
         validators.is_valid_email(row['email'])
 
 def insert_customer(data: dict):
-    """Insere um novo cliente após validação."""
     data_to_insert = {k: v for k, v in data.items() if v is not None and v != ''}
-    
     _validate_row(pd.Series(data_to_insert))
     
-    conn = get_db_connection()
     try:
-        columns = ', '.join(data_to_insert.keys())
-        placeholders = ', '.join(['?'] * len(data_to_insert))
-        sql = f"INSERT INTO customers ({columns}) VALUES ({placeholders})"
-        
-        cursor = conn.cursor()
-        cursor.execute(sql, list(data_to_insert.values()))
-        conn.commit()
+        response = supabase.table("customers").insert(data_to_insert).execute()
         logging.info(f"Cliente '{data.get('nome_completo')}' inserido com sucesso.")
-        
-    except sqlite3.IntegrityError as e:
-        logging.warning(f"Tentativa de inserir CPF/CNPJ duplicado.")
-        raise DuplicateEntryError(f"O CPF ou CNPJ informado já existe no banco de dados.") from e
-    except sqlite3.Error as e:
+    except Exception as e:
+        error_msg = str(e).lower()
+        if "duplicate key value" in error_msg or "unique constraint" in error_msg:
+            logging.warning("Tentativa de inserir CPF/CNPJ duplicado.")
+            raise DuplicateEntryError("O CPF ou CNPJ informado já existe no banco de dados.") from e
         logging.error(f"Erro ao inserir cliente: {e}")
-        conn.rollback()
-        raise DatabaseError(f"Ocorreu um erro ao salvar: {e}") from e
+        raise DatabaseError(f"Ocorreu um erro ao salvar no Supabase: {e}") from e
 
-def _build_where_clause(search_query: str = None, state_filter: str = None, start_date=None, end_date=None):
-    params = []
-    conditions = []
+def _apply_filters(query, search_query: str = None, state_filter: str = None, start_date=None, end_date=None):
     if search_query:
-        conditions.append("(nome_completo LIKE ? OR cpf LIKE ? OR cnpj LIKE ?)")
-        params.extend([f'%{search_query}%', f'%{search_query}%', f'%{search_query}%'])
-    if state_filter and state_filter != "Todos":
-        conditions.append("estado = ?")
-        params.append(state_filter)
+        search_pattern = f"%{search_query}%"
+        query = query.or_(f"nome_completo.ilike.{search_pattern},cpf.ilike.{search_pattern},cnpj.ilike.{search_pattern}")
     
+    if state_filter and state_filter != "Todos":
+        query = query.eq("estado", state_filter)
+        
     if start_date and end_date:
-        conditions.append("data_cadastro BETWEEN ? AND ?")
-        params.extend([start_date, end_date])
-
-    where_clause = " WHERE " + " AND ".join(conditions) if conditions else ""
-    return where_clause, params
+        query = query.gte("data_cadastro", start_date).lte("data_cadastro", end_date)
+        
+    return query
 
 def count_total_records(search_query: str = None, state_filter: str = None) -> int:
-    conn = get_db_connection()
-    # Note: count_total_records in the data grid does not use date filters, so we don't pass them here.
-    where_clause, params = _build_where_clause(search_query, state_filter)
-    query = f"SELECT COUNT(id) FROM customers{where_clause}"
     try:
-        cursor = conn.cursor()
-        cursor.execute(query, params)
-        return cursor.fetchone()[0]
-    except sqlite3.Error as e:
+        query = supabase.table("customers").select("id", count="exact")
+        query = _apply_filters(query, search_query, state_filter)
+        response = query.execute()
+        return response.count if response.count is not None else 0
+    except Exception as e:
         raise DatabaseError(f"Não foi possível contar os registros: {e}") from e
 
 def fetch_data(search_query: str = None, state_filter: str = None, page: int = 1, page_size: int = 10000):
-    conn = get_db_connection()
-    # Note: fetch_data for the main grid does not use date filters.
-    where_clause, params = _build_where_clause(search_query, state_filter)
-    offset = (page - 1) * page_size
-    query = f"SELECT {', '.join(ALL_COLUMNS_WITH_ID)} FROM customers{where_clause} ORDER BY id DESC LIMIT ? OFFSET ?"
-    
     try:
-        df = pd.read_sql_query(query, conn, params=params + [page_size, offset])
-        # Converte para data, tratando erros
+        query = supabase.table("customers").select("*")
+        query = _apply_filters(query, search_query, state_filter)
+        
+        offset = (page - 1) * page_size
+        query = query.range(offset, offset + page_size - 1).order("id", desc=True)
+        
+        response = query.execute()
+        
+        df = pd.DataFrame(response.data)
+        if df.empty:
+            df = pd.DataFrame(columns=ALL_COLUMNS_WITH_ID)
+            return df
+            
         df['data_nascimento'] = pd.to_datetime(df['data_nascimento'], errors='coerce').dt.date
         df['data_cadastro'] = pd.to_datetime(df['data_cadastro'], errors='coerce').dt.date
         
-        # Formata colunas para exibição
         if 'cpf' in df.columns:
-            df['cpf'] = df['cpf'].apply(validators.format_cpf)
+            df['cpf'] = df['cpf'].apply(lambda x: validators.format_cpf(x) if x else x)
         if 'cnpj' in df.columns:
-            df['cnpj'] = df['cnpj'].apply(validators.format_cnpj)
-        
-        # Formata os números de telefone para exibição, mas mantém os dados originais para edição
+            df['cnpj'] = df['cnpj'].apply(lambda x: validators.format_cnpj(x) if x else x)
+            
         if 'telefone1' in df.columns:
-            df['link_wpp_1'] = df['telefone1'].apply(validators.get_whatsapp_url)
-            df['telefone1'] = df['telefone1'].apply(validators.format_whatsapp)
+            df['link_wpp_1'] = df['telefone1'].apply(lambda x: validators.get_whatsapp_url(x) if x else x)
+            df['telefone1'] = df['telefone1'].apply(lambda x: validators.format_whatsapp(x) if x else x)
         if 'telefone2' in df.columns:
-            df['link_wpp_2'] = df['telefone2'].apply(validators.get_whatsapp_url)
-            df['telefone2'] = df['telefone2'].apply(validators.format_whatsapp)
+            df['link_wpp_2'] = df['telefone2'].apply(lambda x: validators.get_whatsapp_url(x) if x else x)
+            df['telefone2'] = df['telefone2'].apply(lambda x: validators.format_whatsapp(x) if x else x)
             
         return df
-    except (pd.io.sql.DatabaseError, sqlite3.Error) as e:
+    except Exception as e:
         raise DatabaseError(f"Erro ao buscar dados: {e}") from e
 
-
 def get_customer_by_id(customer_id: int) -> dict:
-    """Busca um único cliente pelo seu ID e retorna como um dicionário."""
-    conn = get_db_connection()
-    # Garante que a conexão retorna um objeto que se comporta como dict
-    conn.row_factory = sqlite3.Row
-    
-    query = f"SELECT {', '.join(ALL_COLUMNS_WITH_ID)} FROM customers WHERE id = ?"
-    
     try:
-        cursor = conn.cursor()
-        cursor.execute(query, (customer_id,))
-        customer_row = cursor.fetchone()
+        response = supabase.table("customers").select("*").eq("id", customer_id).execute()
         
-        if customer_row:
-            # Converte a linha do banco de dados (Row) em um dicionário
-            customer_dict = dict(customer_row)
+        if response.data and len(response.data) > 0:
+            customer_dict = response.data[0]
             
-            # Formata as datas e outros campos, similar a `fetch_data`
             if customer_dict.get('data_nascimento'):
-                try:
-                    customer_dict['data_nascimento'] = pd.to_datetime(customer_dict['data_nascimento'], errors='coerce').date()
-                except (ValueError, TypeError):
-                    customer_dict['data_nascimento'] = None # Ou um valor padrão
+                try: customer_dict['data_nascimento'] = pd.to_datetime(customer_dict['data_nascimento']).date()
+                except: customer_dict['data_nascimento'] = None
             if customer_dict.get('data_cadastro'):
-                try:
-                    customer_dict['data_cadastro'] = pd.to_datetime(customer_dict['data_cadastro'], errors='coerce').date()
-                except (ValueError, TypeError):
-                    customer_dict['data_cadastro'] = None
+                try: customer_dict['data_cadastro'] = pd.to_datetime(customer_dict['data_cadastro']).date()
+                except: customer_dict['data_cadastro'] = None
 
-            # Usa .get() para segurança, caso a coluna não exista no resultado
-            if customer_dict.get('cpf'):
-                customer_dict['cpf'] = validators.format_cpf(customer_dict.get('cpf'))
-            if customer_dict.get('cnpj'):
-                customer_dict['cnpj'] = validators.format_cnpj(customer_dict.get('cnpj'))
-            if customer_dict.get('telefone1'):
-                customer_dict['telefone1'] = validators.format_whatsapp(customer_dict.get('telefone1'))
-            if customer_dict.get('telefone2'):
-                customer_dict['telefone2'] = validators.format_whatsapp(customer_dict.get('telefone2'))
+            if customer_dict.get('cpf'): customer_dict['cpf'] = validators.format_cpf(customer_dict.get('cpf'))
+            if customer_dict.get('cnpj'): customer_dict['cnpj'] = validators.format_cnpj(customer_dict.get('cnpj'))
+            if customer_dict.get('telefone1'): customer_dict['telefone1'] = validators.format_whatsapp(customer_dict.get('telefone1'))
+            if customer_dict.get('telefone2'): customer_dict['telefone2'] = validators.format_whatsapp(customer_dict.get('telefone2'))
 
             return customer_dict
         else:
-            return None # Retorna None se o cliente não for encontrado
-
-    except sqlite3.Error as e:
+            return None
+    except Exception as e:
         raise DatabaseError(f"Erro ao buscar cliente por ID: {e}") from e
 
 def delete_customer_by_id(customer_id: int):
-    """Deleta um cliente do banco de dados pelo seu ID."""
-    conn = get_db_connection()
     try:
-        cursor = conn.cursor()
-        cursor.execute("DELETE FROM customers WHERE id = ?", (customer_id,))
-        conn.commit()
-        if cursor.rowcount == 0:
-            logging.warning(f"Tentativa de deletar cliente com ID {customer_id} que não existe.")
-            raise DatabaseError(f"Cliente com ID {customer_id} não encontrado.")
-        logging.info(f"Cliente com ID {customer_id} deletado com sucesso.")
-    except sqlite3.Error as e:
-        conn.rollback()
+        response = supabase.table("customers").delete().eq("id", customer_id).execute()
+        
+        logging.info(f"Cliente com ID {customer_id} deletado com sucesso do Supabase.")
+    except Exception as e:
         logging.error(f"Erro ao deletar cliente com ID {customer_id}: {e}")
         raise DatabaseError(f"Ocorreu um erro ao deletar o cliente: {e}") from e
 
 def fetch_dashboard_data(start_date=None, end_date=None) -> pd.DataFrame:
-    """Busca apenas as colunas necessárias para os gráficos e tabelas do dashboard."""
-    conn = get_db_connection()
-    columns_to_fetch = "nome_completo, email, cidade, data_cadastro, tipo_documento, estado"
-    
-    where_clause, params = _build_where_clause(start_date=start_date, end_date=end_date)
-    
-    query = f"SELECT {columns_to_fetch} FROM customers{where_clause} ORDER BY data_cadastro DESC"
     try:
-        df = pd.read_sql_query(query, conn, params=params)
-        # Converte o tipo de dado após a busca
+        query = supabase.table("customers").select("nome_completo,email,cidade,data_cadastro,tipo_documento,estado")
+        query = _apply_filters(query, start_date=start_date, end_date=end_date)
+        query = query.order("data_cadastro", desc=True)
+        
+        response = query.execute()
+        df = pd.DataFrame(response.data)
+        if df.empty:
+            return pd.DataFrame(columns=["nome_completo", "email", "cidade", "data_cadastro", "tipo_documento", "estado"])
         df['data_cadastro'] = pd.to_datetime(df['data_cadastro'], errors='coerce').dt.date
         return df
-    except (pd.io.sql.DatabaseError, sqlite3.Error) as e:
+    except Exception as e:
         raise DatabaseError(f"Erro ao buscar dados para o dashboard: {e}") from e
-
 
 def _get_updates(edited_df: pd.DataFrame, original_df: pd.DataFrame) -> list:
     updates = []
@@ -274,25 +189,20 @@ def _get_updates(edited_df: pd.DataFrame, original_df: pd.DataFrame) -> list:
                 edited_value = edited_row.get(col)
                 original_value = original_row.get(col)
 
-                # Convert pandas NaT/NaN to None for consistent comparison
                 if pd.isna(edited_value): edited_value = None
                 if pd.isna(original_value): original_value = None
                 
-                # Special handling for dates
                 if col in ['data_nascimento']:
-                    edited_date = pd.to_datetime(edited_value).date() if edited_value else None
-                    original_date = pd.to_datetime(original_value).date() if original_value else None
+                    edited_date = pd.to_datetime(edited_value).strftime('%Y-%m-%d') if edited_value else None
+                    original_date = pd.to_datetime(original_value).strftime('%Y-%m-%d') if original_value else None
                     if edited_date != original_date:
                         row_changed = True
                         break
                     continue
 
-                # Handle case where one is None and the other is an empty string
-                if (edited_value is None and original_value == '') or \
-                   (edited_value == '' and original_value is None):
+                if (edited_value is None and original_value == '') or (edited_value == '' and original_value is None):
                     continue
 
-                # Direct comparison for other types
                 if edited_value != original_value:
                     row_changed = True
                     break
@@ -300,19 +210,17 @@ def _get_updates(edited_df: pd.DataFrame, original_df: pd.DataFrame) -> list:
             if row_changed:
                 _validate_row(edited_row)
                 
-                update_values = []
-                update_columns = [col for col in DB_COLUMNS if col != 'data_cadastro']
-                for col in update_columns:
+                update_dict = {"id": int(idx)}
+                for col in editable_cols:
                     value = edited_row.get(col)
                     if col == 'data_nascimento' and pd.notna(value):
-                        update_values.append(pd.to_datetime(value).strftime('%Y-%m-%d'))
-                    elif value == '':
-                        update_values.append(None)
+                        update_dict[col] = pd.to_datetime(value).strftime('%Y-%m-%d')
+                    elif pd.isna(value) or value == '':
+                        update_dict[col] = None
                     else:
-                        update_values.append(value)
+                        update_dict[col] = value
                 
-                update_data = tuple(update_values) + (idx,)
-                updates.append(update_data)
+                updates.append(update_dict)
     return updates
 
 def _get_deletes(edited_df: pd.DataFrame) -> list:
@@ -334,64 +242,45 @@ def commit_changes(edited_df: pd.DataFrame, original_df: pd.DataFrame):
     if not updates and not deletes:
         return {"updated": 0, "deleted": 0}
 
-    conn = get_db_connection()
     try:
-        cursor = conn.cursor()
         if updates:
-            update_columns = [col for col in DB_COLUMNS if col != 'data_cadastro']
-            update_query = f"UPDATE customers SET {', '.join([f'{col}=?' for col in update_columns])} WHERE id=?"
-            cursor.executemany(update_query, updates)
+            supabase.table("customers").upsert(updates).execute()
         if deletes:
-            cursor.executemany("DELETE FROM customers WHERE id=?", [(d,) for d in deletes])
-            
-        conn.commit()
+            for d in deletes:
+                supabase.table("customers").delete().eq("id", int(d)).execute()
         return {"updated": len(updates), "deleted": len(deletes)}
-    except sqlite3.Error as e:
-        conn.rollback()
-        raise DatabaseError(f"Ocorreu um erro no banco de dados: {e}") from e
+    except Exception as e:
+        raise DatabaseError(f"Ocorreu um erro ao atualizar dados no Supabase: {e}") from e
 
 def get_total_customers_count() -> int:
-    conn = get_db_connection()
-    query = "SELECT COUNT(id) FROM customers"
     try:
-        cursor = conn.cursor()
-        cursor.execute(query)
-        return cursor.fetchone()[0]
-    except sqlite3.Error as e:
+        response = supabase.table("customers").select("id", count="exact").execute()
+        return response.count if response.count is not None else 0
+    except Exception as e:
         raise DatabaseError(f"Não foi possível contar o total de clientes: {e}") from e
 
 def get_new_customers_in_period_count(start_date, end_date) -> int:
-    """Conta novos clientes dentro de um período de datas específico."""
-    conn = get_db_connection()
-    where_clause, params = _build_where_clause(start_date=start_date, end_date=end_date)
-    query = f"SELECT COUNT(id) FROM customers{where_clause}"
     try:
-        cursor = conn.cursor()
-        cursor.execute(query, params)
-        return cursor.fetchone()[0]
-    except sqlite3.Error as e:
+        query = supabase.table("customers").select("id", count="exact")
+        query = _apply_filters(query, start_date=start_date, end_date=end_date)
+        response = query.execute()
+        return response.count if response.count is not None else 0
+    except Exception as e:
         raise DatabaseError(f"Não foi possível contar novos clientes do período: {e}") from e
 
 def get_customer_counts_by_state(start_date=None, end_date=None) -> pd.Series:
-    conn = get_db_connection()
-    
-    # Adiciona a condição de agrupamento ao WHERE
-    base_query = "SELECT estado, COUNT(id) as count FROM customers"
-    group_by_clause = " GROUP BY estado ORDER BY count DESC"
-    
-    # Constrói a cláusula WHERE
-    where_clause, params = _build_where_clause(start_date=start_date, end_date=end_date)
-
-    # Adiciona condição de estado não nulo
-    if where_clause:
-        query = f"{base_query}{where_clause} AND estado IS NOT NULL AND estado != ''{group_by_clause}"
-    else:
-        query = f"{base_query} WHERE estado IS NOT NULL AND estado != ''{group_by_clause}"
-
     try:
-        df = pd.read_sql_query(query, conn, params=params)
-        return df.set_index('estado')['count']
-    except sqlite3.Error as e:
+        query = supabase.table("customers").select("estado")
+        query = _apply_filters(query, start_date=start_date, end_date=end_date)
+        query = query.not_.is_("estado", "null").neq("estado", "")
+        
+        response = query.execute()
+        df = pd.DataFrame(response.data)
+        if df.empty:
+            return pd.Series(dtype=int)
+            
+        return df['estado'].value_counts()
+    except Exception as e:
         raise DatabaseError(f"Não foi possível obter a contagem de clientes por estado: {e}") from e
 
 def df_to_csv(df: pd.DataFrame) -> bytes:
