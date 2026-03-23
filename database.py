@@ -26,11 +26,9 @@ def get_supabase_client() -> Client:
     url = st.secrets.get("SUPABASE_URL")
     key = st.secrets.get("SUPABASE_KEY")
     if not url or not key:
-        st.error("Por favor, configure SUPABASE_URL e SUPABASE_KEY no arquivo .streamlit/secrets.toml")
+        st.error("Por favor, configure SUPABASE_URL e SUPABASE_KEY nos Segredos (Secrets) do seu Streamlit App.")
         st.stop()
     return create_client(url, key)
-
-supabase = get_supabase_client()
 
 def _validate_row(row: pd.Series):
     doc_type = row.get('tipo_documento')
@@ -58,7 +56,7 @@ def insert_customer(data: dict):
     _validate_row(pd.Series(data_to_insert))
     
     try:
-        response = supabase.table("customers").insert(data_to_insert).execute()
+        response = get_supabase_client().table("customers").insert(data_to_insert).execute()
         logging.info(f"Cliente '{data.get('nome_completo')}' inserido com sucesso.")
     except Exception as e:
         error_msg = str(e).lower()
@@ -83,7 +81,7 @@ def _apply_filters(query, search_query: str = None, state_filter: str = None, st
 
 def count_total_records(search_query: str = None, state_filter: str = None) -> int:
     try:
-        query = supabase.table("customers").select("id", count="exact")
+        query = get_supabase_client().table("customers").select("id", count="exact")
         query = _apply_filters(query, search_query, state_filter)
         response = query.execute()
         return response.count if response.count is not None else 0
@@ -92,7 +90,7 @@ def count_total_records(search_query: str = None, state_filter: str = None) -> i
 
 def fetch_data(search_query: str = None, state_filter: str = None, page: int = 1, page_size: int = 10000):
     try:
-        query = supabase.table("customers").select("*")
+        query = get_supabase_client().table("customers").select("*")
         query = _apply_filters(query, search_query, state_filter)
         
         offset = (page - 1) * page_size
@@ -126,7 +124,7 @@ def fetch_data(search_query: str = None, state_filter: str = None, page: int = 1
 
 def get_customer_by_id(customer_id: int) -> dict:
     try:
-        response = supabase.table("customers").select("*").eq("id", customer_id).execute()
+        response = get_supabase_client().table("customers").select("*").eq("id", customer_id).execute()
         
         if response.data and len(response.data) > 0:
             customer_dict = response.data[0]
@@ -151,7 +149,7 @@ def get_customer_by_id(customer_id: int) -> dict:
 
 def delete_customer_by_id(customer_id: int):
     try:
-        response = supabase.table("customers").delete().eq("id", customer_id).execute()
+        response = get_supabase_client().table("customers").delete().eq("id", customer_id).execute()
         
         logging.info(f"Cliente com ID {customer_id} deletado com sucesso do Supabase.")
     except Exception as e:
@@ -160,7 +158,7 @@ def delete_customer_by_id(customer_id: int):
 
 def fetch_dashboard_data(start_date=None, end_date=None) -> pd.DataFrame:
     try:
-        query = supabase.table("customers").select("nome_completo,email,cidade,data_cadastro,tipo_documento,estado")
+        query = get_supabase_client().table("customers").select("nome_completo,email,cidade,data_cadastro,tipo_documento,estado")
         query = _apply_filters(query, start_date=start_date, end_date=end_date)
         query = query.order("data_cadastro", desc=True)
         
@@ -244,24 +242,24 @@ def commit_changes(edited_df: pd.DataFrame, original_df: pd.DataFrame):
 
     try:
         if updates:
-            supabase.table("customers").upsert(updates).execute()
+            get_supabase_client().table("customers").upsert(updates).execute()
         if deletes:
             for d in deletes:
-                supabase.table("customers").delete().eq("id", int(d)).execute()
+                get_supabase_client().table("customers").delete().eq("id", int(d)).execute()
         return {"updated": len(updates), "deleted": len(deletes)}
     except Exception as e:
         raise DatabaseError(f"Ocorreu um erro ao atualizar dados no Supabase: {e}") from e
 
 def get_total_customers_count() -> int:
     try:
-        response = supabase.table("customers").select("id", count="exact").execute()
+        response = get_supabase_client().table("customers").select("id", count="exact").execute()
         return response.count if response.count is not None else 0
     except Exception as e:
         raise DatabaseError(f"Não foi possível contar o total de clientes: {e}") from e
 
 def get_new_customers_in_period_count(start_date, end_date) -> int:
     try:
-        query = supabase.table("customers").select("id", count="exact")
+        query = get_supabase_client().table("customers").select("id", count="exact")
         query = _apply_filters(query, start_date=start_date, end_date=end_date)
         response = query.execute()
         return response.count if response.count is not None else 0
@@ -270,7 +268,7 @@ def get_new_customers_in_period_count(start_date, end_date) -> int:
 
 def get_customer_counts_by_state(start_date=None, end_date=None) -> pd.Series:
     try:
-        query = supabase.table("customers").select("estado")
+        query = get_supabase_client().table("customers").select("estado")
         query = _apply_filters(query, start_date=start_date, end_date=end_date)
         query = query.not_.is_("estado", "null").neq("estado", "")
         
