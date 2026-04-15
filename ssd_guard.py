@@ -10,7 +10,9 @@ import sys
 TARGET_UUID = "01DAA91D85CDBE50"
 MOUNT_POINT = "/media/ssd_externo"
 FS_TYPE = "ntfs-3g"
-MOUNT_OPTIONS = "defaults,nofail,uid=1000,gid=1000"
+MOUNT_OPTIONS = "uid=1000,gid=1000,allow_other,default_permissions"
+NEXTCLOUD_CONTAINER = "nextcloud-app-1"
+NEXTCLOUD_DIR = "/home/bellowill/nextcloud"
 
 def get_device_node(uuid):
     """Busca o nó do dispositivo (/dev/sdX1) baseado no UUID."""
@@ -31,16 +33,44 @@ def mount_ssd(device_node):
     
     print(f"Tentando montar {device_node} em {MOUNT_POINT}...")
     try:
-        # Tenta desmontar primeiro se estiver montado em outro lugar ou estiver com erro
+        # Tenta desmontar primeiro se estiver montado em outro lugar ou com erro
         subprocess.call(["umount", "-l", MOUNT_POINT], stderr=subprocess.DEVNULL)
+        time.sleep(1)
         
         cmd = ["mount", "-t", FS_TYPE, device_node, MOUNT_POINT, "-o", MOUNT_OPTIONS]
         subprocess.check_call(cmd)
         print("Montagem bem-sucedida!")
+        notify_docker_container()
         return True
     except subprocess.CalledProcessError as e:
         print(f"Erro ao montar: {e}")
         return False
+
+def notify_docker_container():
+    """
+    O Docker com propagação 'rprivate' NÃO vê montagens feitas no host depois
+    que o container iniciou. A solução correta é usar 'shared' propagation no
+    docker-compose.yml OU reiniciar apenas o container do Nextcloud app.
+    Aqui fazemos o restart apenas do app para não derrubar o banco de dados.
+    """
+    try:
+        # Verifica se o container existe e está rodando
+        result = subprocess.run(
+            ["docker", "inspect", "-f", "{{.State.Running}}", NEXTCLOUD_CONTAINER],
+            capture_output=True, text=True
+        )
+        if result.returncode != 0 or result.stdout.strip() != 'true':
+            print(f"Container {NEXTCLOUD_CONTAINER} não está rodando, pulando notificação.")
+            return
+        
+        print(f"Reiniciando {NEXTCLOUD_CONTAINER} para recarregar ponto de montagem...")
+        subprocess.run(
+            ["docker", "restart", NEXTCLOUD_CONTAINER],
+            capture_output=True, timeout=60
+        )
+        print("Container reiniciado com sucesso!")
+    except Exception as e:
+        print(f"Falha ao reiniciar container: {e}")
 
 def check_and_fix():
     """Verifica o estado atual e corrige se necessário."""
